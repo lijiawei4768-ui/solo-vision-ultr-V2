@@ -46,90 +46,17 @@ import { StatsSheet } from "../components/ControlCenter";
 import { useToast } from "../components/Toast";
 import { ThemeContext, CalibContext } from "../contexts";
 import { calculateTargetCoordinates } from "../engine/theory/TwoPointSystem";
+import { L2PushScreen } from "../components/L2PushScreen";
+import {
+  STRING_NAMES, MODE_SEQUENCE, MODE_CARDS, INTERVAL_CARDS,
+  INTERVAL_PRESETS, INTERVAL_CYCLE, SPACE_PRESETS, SPACE_CYCLE,
+  FLOW_PRESETS, FLOW_CYCLE, ENHARMONIC_PAIRS,
+  SEQ_INFO, ROOT_INFO, ENTRY_INFO, getShapeType,
+} from "./intervals/constants";
 
 function useT() {
   const ctx = useContext(ThemeContext);
   return ctx?.tokens ?? DT;
-}
-
-// ─────────────────────────────────────────────────────────────
-// Constants & Presets
-// ─────────────────────────────────────────────────────────────
-const STRING_NAMES = ["E2", "A2", "D3", "G3", "B3", "e4"];
-const MODE_SEQUENCE = ["learning", "rootFirst", "blind", "coreDrill"];
-
-const MODE_CARDS = [
-  { id: "learning",  label: "Visual",     sublabel: "Fretboard visible" },
-  { id: "blind",     label: "Blind",      sublabel: "Fretboard hidden" },
-  { id: "rootFirst", label: "Root First", sublabel: "Play root first" },
-  { id: "coreDrill", label: "Core Drill", sublabel: "Reveal all shapes" },
-];
-
-const INTERVAL_CARDS = [
-  { id: "triad",   label: "Triad",   sublabel: "3rd + 5th" },
-  { id: "seventh", label: "7th",     sublabel: "3rd + 5th + b7" },
-  { id: "guide",   label: "Guide",   sublabel: "3rd + 7th" },
-  { id: "all",     label: "All",     sublabel: "All 11 intervals" },
-  { id: "custom",  label: "Custom",  sublabel: "Open editor →" },
-];
-
-const INTERVAL_PRESETS = [
-  { id: "triad",   label: "Triad",   summary: "3rd + 5th",        intervals: [3, 7] },
-  { id: "seventh", label: "7th",     summary: "3rd + 5th + b7",   intervals: [3, 7, 10] },
-  { id: "guide",   label: "Guide",   summary: "3rd + 7th",        intervals: [3, 10] },
-  { id: "all",     label: "All",     summary: "All 11 intervals",  intervals: [1,2,3,4,5,6,7,8,9,10,11] },
-  { id: "custom",  label: "Custom",  summary: null,                intervals: null },
-];
-const INTERVAL_CYCLE = ["triad", "seventh", "guide", "all"];
-
-const SPACE_PRESETS = [
-  { id: "full",   label: "Full",    summary: "All frets",     fretRange: { min:0,  max:12 }, strings: null,    enabled: false },
-  { id: "pos1",   label: "Pos 1–5", summary: "Frets 1–5",    fretRange: { min:1,  max:5  }, strings: null,    enabled: true  },
-  { id: "pos5",   label: "Pos 5–9", summary: "Frets 5–9",    fretRange: { min:5,  max:9  }, strings: null,    enabled: true  },
-  { id: "ead",    label: "EAD",     summary: "E A D 1–5",     fretRange: { min:1,  max:5  }, strings: [0,1,2], enabled: true  },
-  { id: "custom", label: "Custom",  summary: "Custom range",  fretRange: { min:0,  max:12 }, strings: null,    enabled: true  },
-];
-const SPACE_CYCLE = ["full", "pos1", "pos5", "ead"];
-
-const FLOW_PRESETS = [
-  { id: "free",     label: "Free",     summary: "No order",      order: "random",   enabled: false },
-  { id: "low-high", label: "Low→High", summary: "E→A→D→G→B→e",  order: "low-high", enabled: true  },
-  { id: "high-low", label: "High→Low", summary: "e→B→G→D→A→E",  order: "high-low", enabled: true  },
-  { id: "custom",   label: "Custom",   summary: "Custom strings", order: "random",   enabled: true  },
-];
-const FLOW_CYCLE = ["free", "low-high", "high-low"];
-
-const ENHARMONIC_PAIRS = {
-  "b3": { partners: ["#2","#9"],  context: "b3 = minor chord tones; #2/#9 = altered dominants" },
-  "#2": { partners: ["b3","#9"],  context: "#2 and #9 share the same shape — practice separately" },
-  "#9": { partners: ["b3","#2"],  context: "#9 appears in dominant 7th (#9 chord) contexts" },
-  "b6": { partners: ["#5"],       context: "b6 and #5 share one shape, different harmonic roles" },
-  "#5": { partners: ["b6"],       context: "#5 = augmented/altered chords; b6 = minor" },
-  "b7": { partners: ["#6"],       context: "b7 = dominant quality; rarely called #6" },
-};
-
-const SEQ_INFO = {
-  ascending:  { title: "Ascending ↑",     body: "Practice the scale going upward — from root to octave." },
-  descending: { title: "Descending ↓",    body: "Practice going downward — from highest note back to root." },
-  random:     { title: "Random Degree ⟳", body: "A random degree is chosen each rep." },
-};
-const ROOT_INFO = {
-  static:     { title: "Static Root",    body: "The root stays the same every cycle." },
-  chromatic:  { title: "Chromatic +½",   body: "Root rises by one semitone after each complete cycle." },
-  random:     { title: "Random Root",    body: "Root changes randomly after each cycle." },
-};
-const ENTRY_INFO = {
-  title: "Entry Point",
-  body:  "Selects which scale degree you start from. Starting on 3 or 5 instead of 1 builds deep knowledge.",
-};
-
-function getShapeType(rootStr, rootFret, targetStr, targetFret) {
-  const ds = targetStr - rootStr;
-  const df = targetFret - rootFret;
-  if (ds === 0) return "same string";
-  if (Math.abs(ds) === 1) return df >= 0 ? "ascending +1 string" : "descending +1 string";
-  if (Math.abs(ds) === 2) return df >= 0 ? "skip string ascending" : "skip string descending";
-  return `${Math.abs(ds)}-string span`;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -873,104 +800,6 @@ function ControlCenter({
             </div>
           </motion.div>
         </>
-      )}
-    </AnimatePresence>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// L2PushScreen — iOS push navigation base
-// Slides in from right, left-edge swipe-right to dismiss
-// ─────────────────────────────────────────────────────────────
-function L2PushScreen({ open, onClose, title, subtitle, children, zIndex = 200 }) {
-  const T = useT();
-  const startXRef  = useRef(null);
-  const [dragX, setDragX] = useState(0);
-  const isDragRef  = useRef(false);
-
-  function onTouchStart(e) {
-    if (e.touches[0].clientX < 48) {
-      startXRef.current = e.touches[0].clientX;
-      isDragRef.current = true;
-    }
-  }
-  function onTouchMove(e) {
-    if (!isDragRef.current || startXRef.current === null) return;
-    const dx = e.touches[0].clientX - startXRef.current;
-    if (dx > 0) setDragX(dx);
-  }
-  function onTouchEnd() {
-    if (!isDragRef.current) return;
-    if (dragX > 80) onClose();
-    setDragX(0);
-    isDragRef.current = false;
-    startXRef.current = null;
-  }
-
-  return (
-    <AnimatePresence>
-      {open && (
-        <motion.div
-          key="l2-screen"
-          initial={{ x: "100%" }}
-          animate={{ x: dragX }}
-          exit={{ x: "100%" }}
-          transition={SPRINGS.pageTransition}
-          onTouchStart={onTouchStart}
-          onTouchMove={onTouchMove}
-          onTouchEnd={onTouchEnd}
-          style={{
-            position: "fixed", inset: 0, zIndex,
-            background: "rgba(16,16,22,0.98)",
-            backdropFilter: "blur(24px)",
-            WebkitBackdropFilter: "blur(24px)",
-            display: "flex", flexDirection: "column",
-            overflow: "hidden",
-          }}
-        >
-          {/* Header */}
-          <div style={{
-            display: "flex", alignItems: "center",
-            padding: "max(52px, env(safe-area-inset-top, 44px)) 20px 16px",
-            flexShrink: 0,
-            borderBottom: `0.5px solid ${T.border ?? "rgba(255,255,255,0.1)"}`,
-          }}>
-            <motion.button
-              onClick={onClose}
-              whileTap={{ scale: 0.88 }}
-              transition={SPRINGS.tap}
-              style={{
-                display: "flex", alignItems: "center", gap: 4,
-                background: "none", border: "none",
-                color: T.accent ?? "#E8A23C",
-                cursor: "pointer",
-                fontSize: 16, fontWeight: 500,
-                fontFamily: FONT_TEXT,
-                padding: "4px 0", marginRight: 12,
-              }}
-            >
-              <svg width="10" height="18" viewBox="0 0 10 18" fill="none"
-                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 1 L1 9 L9 17" />
-              </svg>
-            </motion.button>
-            <div>
-              {subtitle && (
-                <div style={{ fontSize: 10, color: T.textTertiary, letterSpacing: 1, textTransform: "uppercase" }}>
-                  {subtitle}
-                </div>
-              )}
-              <div style={{ fontSize: 20, fontWeight: 700, color: T.textPrimary, fontFamily: FONT_DISPLAY, marginTop: 1 }}>
-                {title}
-              </div>
-            </div>
-          </div>
-
-          {/* Content */}
-          <div style={{ flex: 1, overflowY: "auto", overscrollBehavior: "contain" }}>
-            {children}
-          </div>
-        </motion.div>
       )}
     </AnimatePresence>
   );
@@ -1978,6 +1807,48 @@ function ScaleBlueprintBar({ scaleName, rootNote }) {
   );
 }
 
+// ─────────────────────────────────────────────────────────────
+// TypewriterHint — animated tooltip shown above icon buttons
+// ─────────────────────────────────────────────────────────────
+function TypewriterHint({ visible, text, onDone }) {
+  useEffect(() => {
+    if (!visible) return;
+    const t = setTimeout(onDone, 2400);
+    return () => clearTimeout(t);
+  }, [visible, onDone]);
+
+  return (
+    <AnimatePresence>
+      {visible && (
+        <motion.div
+          initial={{ opacity: 0, y: 4, scale: 0.92 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -4, scale: 0.92 }}
+          transition={{ duration: 0.18 }}
+          style={{
+            position: "absolute",
+            bottom: "calc(100% + 6px)",
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: "rgba(28,28,30,0.92)",
+            border: "0.5px solid rgba(255,255,255,0.14)",
+            borderRadius: 8,
+            padding: "4px 8px",
+            fontSize: 10,
+            color: "rgba(255,255,255,0.6)",
+            whiteSpace: "nowrap",
+            pointerEvents: "none",
+            zIndex: 20,
+            fontFamily: "system-ui, sans-serif",
+          }}
+        >
+          {text}
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
 function InfoIcon({
   icon,
   isActive,
@@ -1998,7 +1869,7 @@ function InfoIcon({
 
   const lp = useLongPress(onLongPress, { delay: 600 });
 
-  // T7: 判断是否使用 SVG 渲染
+  // Determines whether to delegate rendering to ControlIcon (SVG) or render text symbol directly
   const isSvgIcon = ["ascending", "descending", "random", "static", "chromatic", "?"].includes(icon);
 
   return (
@@ -2011,6 +1882,39 @@ function InfoIcon({
       <motion.button
         {...lp}
         onClick={onPress}
+        whileTap={{ scale: 0.88 }}
+        style={{
+          width: 38,
+          height: 38,
+          borderRadius: 10,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          border: `0.5px solid ${isActive
+            ? (T.accentBorder ?? "rgba(232,162,60,0.35)")
+            : (T.border ?? "rgba(255,255,255,0.1)")}`,
+          background: isActive
+            ? (T.accentSub ?? "rgba(232,162,60,0.1)")
+            : (T.surface2 ?? "rgba(255,255,255,0.06)"),
+          color: isActive
+            ? (T.accent ?? "#E8A23C")
+            : (T.textTertiary ?? "rgba(255,255,255,0.4)"),
+          cursor: "pointer",
+          fontSize: 14,
+          fontFamily: FONT_MONO,
+          fontWeight: isActive ? 700 : 400,
+          transition: "background 0.18s, border-color 0.18s, color 0.18s",
+        }}
+      >
+        {isSvgIcon
+          ? <ControlIcon icon={icon} size={16} color="currentColor" />
+          : icon
+        }
+      </motion.button>
+    </div>
+  );
+}
+
 export function NoteTrainer({ settings, audioEnabled, setAudioEnabled }) {
   const T = useT();
   const tuning = settings.tuning;
