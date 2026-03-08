@@ -1969,12 +1969,20 @@ function ScaleBlueprintBar({ scaleName, rootNote }) {
         })}
       </div>
 
-      {meta.description && (
+        {meta.description && (
         <div style={{ fontSize: 10, color: T.textTertiary, marginTop: 4, lineHeight: 1.5 }}>
           {meta.description}
         </div>
+      )}
+    </div>
+  );
+}
+
 function InfoIcon({
-  icon, isActive, onPress, onLongPress,
+  icon,
+  isActive,
+  onPress,
+  onLongPress,
   showHintOnMount = false,
 }) {
   const T = useT();
