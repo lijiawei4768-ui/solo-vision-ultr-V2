@@ -1,0 +1,20 @@
+[
+  {
+    "id": "2026-03-05-intervals-imports",
+    "timestamp": "2026-03-05T10:12:00Z",
+    "title": "Fixed undefined symbols in IntervalsTrainer.jsx",
+    "summary": "Added missing imports and inlined helper UI components copied from ScalesTrainer to resolve ESLint undefined errors.",
+    "details": "Patched src/trainers/IntervalsTrainer.jsx: added imports (NOTE_NAMES, FLAT_NAMES, SCALES, SCALE_META, findNotePositions, noteNameToChroma) and copied TypewriterHint, InfoIcon, ScaleBlueprintBar helpers. Replaced hard-coded vocalization color with theme tokens.",
+    "by": "AI",
+    "tags": ["fix","IntervalsTrainer","imports"]
+  },
+  {
+    "id": "2026-03-05-build-warnings",
+    "timestamp": "2026-03-05T10:20:00Z",
+    "title": "Build compiled with ESLint warnings",
+    "summary": "User ran `npm run build` — compilation succeeded but many ESLint warnings remain.",
+    "details": "Warnings include unused vars, react-hooks/exhaustive-deps, no-template-curly-in-string in i18n.js, and duplicate key in PersonaView.jsx. Recommend addressing high-priority lint items next.",
+    "by": "AI",
+    "tags": ["info","build","eslint"]
+  }
+]
