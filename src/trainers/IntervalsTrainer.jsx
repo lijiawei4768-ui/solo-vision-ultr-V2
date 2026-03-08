@@ -2558,36 +2558,25 @@ export function TrainerHeader({
   );
 }
 
-// ---
+/*
+INTVL.4.0 — 2026-03-07
 
-// ---
-// INTVL.4.0 — 2026-03-07
-//
-// Updated:
-// - 全新 L0 固定舞台布局（position:fixed, overflow:hidden）
-// - 新增 FindModeCapsules（Find Root / Find Interval 两个胶囊，在 FocusCard 上方）
-// - 新增 BottomBar（合并 Handle + StatusStrip，把手在上，4状态胶囊在下）
-// - FocusCard 高度锁定 172px（与 Notes Trainer 一致）
-// - ControlCenter 重写：iOS 风格半屏模态，背景虚化，下滑关闭，无 × 按钮
-// - L2PushScreen 新建：右侧推入，左边缘右滑关闭，无 × 按钮，iOS 导航风格
-// - Space/Flow: 点击=切换预设，长按=进 L2（震动反馈 [8,50,8]，边框变 accent）
-// - VerticalCardStack: Mode/Intervals 上下滑动切换，无限循环
-// - FocusCardContent: 响应 findMode（Find Root / Find Interval 不同文案）
-// - body scroll 在 trainer 挂载期间锁定
-// - Tab 在 trainer 挂载期间始终隐藏（onCCChange 调用）
-// - 指板区域支持上滑手势打开 L1
-//
-// Fixed:
-// - StatusStrip 和 BottomHandle 合并为 BottomBar，把手在上
-// - Mode/Intervals 卡片叠加问题（VerticalCardStack 替换）
-// - Space/Flow 长按交互视觉反馈（边框变 accent）
-// - L1/L2 背景虚化正确（backdrop-filter: blur）
-// - VocalizationPrompt 颜色使用 T.accent
-//
-// Pending:
-// - 指板 5 品窗口追踪动画（手机端把位跟踪）
-// - iPad / PC 布局适配优化
-// - 指板建模系统（单音/音程/和弦识别）
-// - 泛音识别增强
-// - 48 个音程形状系统集成
-// ---
+Updated:
+- 全新 L0 固定舞台布局（position:fixed, overflow:hidden）
+- 新增 FindModeCapsules（Find Root / Find Interval 两个胶囊，在 FocusCard 上方）
+- 新增 BottomBar（合并 Handle + StatusStrip，把手在上，4状态胶囊在下）
+- FocusCard 高度锁定 172px（与 Notes Trainer 一致）
+- ControlCenter 重写：iOS 风格半屏模态
+- L2PushScreen 新建
+- Space/Flow: 点击=切换预设，长按=进 L2
+- VerticalCardStack
+- FocusCardContent 响应 findMode
+- body scroll 在 trainer 挂载期间锁定
+
+Pending:
+- 指板 5 品窗口追踪动画
+- iPad / PC 布局适配
+- 指板建模系统
+- 泛音识别增强
+- 48 个音程形状系统
+*/
