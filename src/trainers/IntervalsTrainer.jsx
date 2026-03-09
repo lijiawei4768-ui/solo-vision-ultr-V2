@@ -440,7 +440,7 @@ function FindModeCapsules({ findMode, onSelect }) {
       alignItems: "center",
       justifyContent: "center",
       gap: 8,
-      height: 40,
+      height: 34,
       paddingLeft: 16,
       paddingRight: 16,
       flexShrink: 0,
@@ -2114,6 +2114,25 @@ export function IntervalTrainer({ settings, onSettings, audioEnabled, setAudioEn
           status={status}
           onToggle={() => setAudioEnabled?.(v => !v)}
         />
+        {/* Stats Button - 按 v5.1 7 */}
+        <motion.button
+          onClick={() => setShowStats(true)}
+          whileTap={{ scale: 0.88 }}
+          transition={SPRINGS.tap}
+          style={{
+            width: 34, height: 34, borderRadius: 10,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: "pointer",
+            border: `0.5px solid ${T.border ?? "rgba(255,255,255,0.1)"}`,
+            background: T.surface2 ?? "rgba(255,255,255,0.06)",
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.textSecondary ?? "rgba(255,255,255,0.55)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="6" y1="20" x2="6" y2="10"/>
+            <line x1="12" y1="20" x2="12" y2="4"/>
+            <line x1="18" y1="20" x2="18" y2="14"/>
+          </svg>
+        </motion.button>
         <AnimatePresence>
           {streak > 0 && (
             <motion.div key="streak"
@@ -2186,7 +2205,7 @@ export function IntervalTrainer({ settings, onSettings, audioEnabled, setAudioEn
     <>
       <FindModeCapsules findMode={findMode} onSelect={setFindMode} />
       <div style={{ paddingLeft: 12, paddingRight: 12, flexShrink: 0 }}>
-        <GlassCard style={{ height: 172, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "12px 20px", textAlign: "center", position: "relative", overflow: "hidden" }}>
+        <GlassCard style={{ height: "max(140px, 22dvh)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "12px 20px", textAlign: "center", position: "relative", overflow: "hidden" }}>
           <motion.div
             key={(question?.intervalIdx ?? "none") + "-" + (question?.rootStr ?? "x") + "-" + findMode + "-" + stage}
             initial={{ scale: 0.85, opacity: 0, filter: "blur(6px)" }}
@@ -2205,6 +2224,63 @@ export function IntervalTrainer({ settings, onSettings, audioEnabled, setAudioEn
           </AnimatePresence>
         </GlassCard>
       </div>
+
+      {/* PositionStrip - 按 v5.1 1.3 */}
+      {question && (
+        <div style={{
+          height: 18, marginHorizontal: 12,
+          background: T.surface2,
+          borderRadius: 6,
+          border: `0.5px solid ${T.border}`,
+          display: "flex", alignItems: "center",
+          padding: "0 12px",
+          gap: 8,
+          flexShrink: 0,
+        }}>
+          {/* 12格轨道 */}
+          <div style={{ flex: 1, height: 5, borderRadius: 2.5, background: "rgba(255,255,255,0.06)", position: "relative" }}>
+            {/* 视窗区域高亮 */}
+            <div style={{
+              position: "absolute", top: 0, height: "100%",
+              left: `${(Math.max(0, Math.min(viewportCenter - 2, 7)) / 12) * 100}%`,
+              width: `${(5 / 12) * 100}%`,
+              borderRadius: 2.5,
+              background: T.accent, opacity: 0.25,
+              border: `0.5px solid ${T.accentBorder}`,
+              transition: "left 0.35s cubic-bezier(0.34,1.56,0.64,1)",
+            }}/>
+            {/* 根音点 */}
+            <div style={{
+              position: "absolute", top: "50%", transform: "translate(-50%, -50%)",
+              left: `${(question.rootFret / 12) * 100}%`,
+              width: 7, height: 7, borderRadius: "50%",
+              background: "#E8A23C",
+              boxShadow: "0 0 4px rgba(232,162,60,0.4)",
+            }}/>
+            {/* 目标点 */}
+            <div style={{
+              position: "absolute", top: "50%", transform: "translate(-50%, -50%)",
+              left: `${(question.targetFret / 12) * 100}%`,
+              width: 7, height: 7, borderRadius: "50%",
+              background: T.accent, opacity: 0.9,
+            }}/>
+            {/* 把位标记点 (3/5/7/9) */}
+            {[3, 5, 7, 9].map(f => (
+              <div key={f} style={{
+                position: "absolute", bottom: "-3px", transform: "translateX(-50%)",
+                left: `${(f / 12) * 100}%`,
+                width: 3, height: 3, borderRadius: "50%",
+                background: "rgba(255,255,255,0.2)",
+              }}/>
+            ))}
+          </div>
+          {/* 当前视窗范围 */}
+          <span style={{ fontSize: 10, color: T.textTertiary, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
+            {Math.max(0, Math.min(viewportCenter - 2, 7))}–{Math.max(0, Math.min(viewportCenter - 2, 7)) + 4}
+          </span>
+        </div>
+      )}
+
       <AnimatePresence>
         {vocPrompt && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={SPRINGS.feather} style={{ overflow: "hidden", paddingLeft: 12, paddingRight: 12, paddingTop: 6, flexShrink: 0 }}>
@@ -2226,7 +2302,7 @@ export function IntervalTrainer({ settings, onSettings, audioEnabled, setAudioEn
   );
 
   const FretboardArea = (
-    <div style={{ flex: 1, minHeight: 0, paddingTop: 8, display: "flex", flexDirection: "column" }}
+    <div style={{ flex: 1, minHeight: 0, padding: "8px 0", display: "flex", flexDirection: "column" }}
       onTouchStart={e => { fbStartYRef.current = e.touches[0].clientY; }}
       onTouchEnd={e => {
         if (fbStartYRef.current !== null) {
@@ -2246,7 +2322,15 @@ export function IntervalTrainer({ settings, onSettings, audioEnabled, setAudioEn
             arcPair={arcPair}
             swipeHandlers={swipe}
             viewportCenter={viewportCenter}
-            containerStyle={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", justifyContent: "center" }}
+            containerStyle={{
+              flex: 1, minHeight: 0, display: "flex", flexDirection: "column", justifyContent: "center",
+              paddingTop: 12,
+              paddingBottom: 16,
+              paddingLeft: 8,
+              background: "rgba(18,18,26,1)",
+              borderRadius: 12,
+              border: "0.5px solid rgba(255,255,255,0.05)",
+            }}
           />
         </motion.div>
       ) : (
