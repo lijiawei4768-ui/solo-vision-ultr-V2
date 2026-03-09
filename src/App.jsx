@@ -1,14 +1,13 @@
-
 // ─────────────────────────────────────────────────────────────
 // SOLO VISION ULTRA — Root App Component
 // Pre-flight gating → Main App with 5-tab navigation
 //
-// v2.2 新增：引导界面（Onboarding）流程
-// Batch 2 主题系统：
-//   • T = getTokensForTheme(settings.themeId)
-//   • isDark = T.themeDark  ← 唯一来源，与 T tokens 永远同步
-//   • settings.colorMode 已弃用（保留字段向后兼容旧存档）
-//   • 深/浅切换 → ControlCenter 修改 themeId（"ios-light" = 浅色）
+// v2.3 修复:
+//   • TAB_TITLES 完整 6-tab × 3-lang 映射（修复"我的训练"一刀切 bug）
+//   • header 仅在 home/persona 渲染（修复 trainer 页面标题透出 bug）
+//   • TabBar 始终渲染（删除 trainerCCOpen 条件，修复进入 interval 后无法切页 bug）
+//   • trainer 内容区 paddingBottom 为 TabBar 留空间（修复 BottomBar 被遮挡 bug）
+//   • 删除 trainerCCOpen / setTrainerCCOpen（不再需要）
 // ─────────────────────────────────────────────────────────────
 import React, {
   useState, useEffect, useCallback
@@ -49,19 +48,29 @@ const DEFAULT_SETTINGS = {
   showNoteNames:    true,
   showAllPositions: false,
   sensitivity:      0.01,
-  colorMode:        "dark",      // 保留字段（向后兼容旧存档，不再驱动 UI）
-  themeId:          "violet-deep", // 主题唯一来源
+  colorMode:        "dark",
+  themeId:          "violet-deep",
 };
+
+// ── Tab 标题完整映射（6 tabs × 3 langs）────────────────────────
+// lang: "en" | "zh" | "mixed"
+const TAB_TITLES = {
+  home:     { en: "Home",       zh: "首页",    mixed: "Home" },
+  note:     { en: "Notes",      zh: "单音",    mixed: "单音" },
+  interval: { en: "Intervals",  zh: "音程",    mixed: "音程" },
+  changes:  { en: "Changes",    zh: "和弦进行", mixed: "Changes" },
+  scale:    { en: "Scales",     zh: "音阶",    mixed: "Scales" },
+  persona:  { en: "Me",         zh: "我",      mixed: "Me" },
+};
+
+// trainer tabs 不显示 App header，内容区也不需要侧边 padding
+const TRAINER_TABS = new Set(["note", "interval", "changes", "scale"]);
 
 function loadSettings() {
   try {
     const raw = localStorage.getItem("svultra_settings");
     if (!raw) return DEFAULT_SETTINGS;
     const saved = JSON.parse(raw);
-
-    // ── 向后兼容迁移：旧存档没有 themeId 字段 ──────────────
-    // 旧 colorMode: "light" → 迁移为 ios-light 主题
-    // 旧 colorMode: "dark"  → 迁移为 violet-deep 主题（默认）
     if (!saved.themeId) {
       saved.themeId = (saved.colorMode === "light") ? "ios-light" : "violet-deep";
     }
@@ -96,9 +105,6 @@ function loadHasSeenOnboarding() {
 // MAIN APP SHELL
 // ─────────────────────────────────────────────────────────────
 export default function App() {
-
-
-
   const [settings,     setSettings]     = useState(loadSettings);
   const [calibData,    setCalibData]    = useState(loadCalib);
   const [activeTab,    setActiveTab]    = useState("home");
@@ -107,13 +113,9 @@ export default function App() {
   const [tuningOpen,   setTuningOpen]   = useState(false);
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState(loadHasSeenOnboarding);
-  const [trainerCCOpen, setTrainerCCOpen] = useState(false);
   const [startOnboardingWithTuner, setStartOnboardingWithTuner] = useState(false);
-
-  // Page index state for UI indicators only (no swipe navigation)
   const [mainPageIndex, setMainPageIndex] = useState(0);
 
-  // Vertical swipe disabled - page navigation now via tabs/buttons only
   const verticalSwipe = { onTouchStart: () => {}, onTouchEnd: () => {}, onMouseDown: () => {}, onMouseUp: () => {} };
 
   const [lang, setLangState] = useState(loadLang);
@@ -126,13 +128,9 @@ export default function App() {
   const historyData    = usePracticeHistory();
   const progressSystem = useProgressSystem();
 
-  // ── BUG FIX：T 是主题唯一来源，isDark 从 T 读取 ─────────────
-  // 旧代码：isDark = settings.colorMode !== "light"  ← 与 T 断联
-  // 新代码：isDark = T.themeDark                     ← 永远与 T 一致
   const T      = getTokensForTheme(settings.themeId ?? "violet-deep");
   const isDark = T.themeDark;
 
-  // Persist settings
   useEffect(() => {
     try { localStorage.setItem("svultra_settings", JSON.stringify(settings)); }
     catch {}
@@ -141,7 +139,6 @@ export default function App() {
   const handleTabChange = useCallback((tab) => {
     if (tab !== activeTab) setAudioEnabled(false);
     setActiveTab(tab);
-    // Sync mainPageIndex for UI indicators when tab changes
     if (tab === "home") setMainPageIndex(0);
     else if (tab === "persona") setMainPageIndex(1);
   }, [activeTab]);
@@ -170,24 +167,20 @@ export default function App() {
     setCcOpen(false);
     setSettingsOpen(false);
     setTuningOpen(false);
-    setTrainerCCOpen(false);
     setActiveTab("home");
   }, []);
 
   const handleSettings = useCallback((next) => setSettings(next), []);
 
-  // Simple swipe handler for control center
   const swipe = useSwipe(() => setCcOpen(true), null);
 
-  // ── ThemeContext：dark 与 tokens 来自同一个 T，永远同步 ────
   const themeCtxValue = {
-    dark:   isDark,   // ← 来自 T.themeDark，与 tokens 同源
+    dark:   isDark,
     tokens: T,
-    // toggle：深色 ↔ 浅色（浅色 = ios-light，深色 = 回到 violet-deep）
     toggle: () => setSettings(s => ({
       ...s,
       themeId:   isDark ? "ios-light" : "violet-deep",
-      colorMode: isDark ? "light"     : "dark",   // 保持 colorMode 字段同步
+      colorMode: isDark ? "light"     : "dark",
     })),
   };
 
@@ -232,6 +225,12 @@ export default function App() {
     );
   }
 
+  // ── 当前 tab 是否为训练器 ────────────────────────────────────
+  const isTrainerTab = TRAINER_TABS.has(activeTab);
+
+  // ── 当前 tab 标题（支持 en / zh / mixed）────────────────────
+  const pageTitle = TAB_TITLES[activeTab]?.[lang] ?? TAB_TITLES[activeTab]?.en ?? activeTab;
+
   return (
     <LangContext.Provider value={langCtxValue}>
       <ThemeContext.Provider value={themeCtxValue}>
@@ -239,7 +238,7 @@ export default function App() {
           <ToastProvider>
             <div
               {...swipe}
-              {...(activeTab === "home" || activeTab === "persona" ? verticalSwipe : {})}
+              {...(!isTrainerTab && activeTab === "home" ? verticalSwipe : {})}
               style={{
                 height: "100dvh",
                 background: T.surface0,
@@ -251,9 +250,26 @@ export default function App() {
             >
               <MeshBackground dark={isDark} />
 
-              {/* 内容层 - 根据页面类型决定是否可滚动 */}
-              {/* 训练器页面 (interval/note/changes/scale) 禁止滚动，内容页面 (home/persona) 可滚动 */}
-              <div style={{
+              {/* ── 内容层 ────────────────────────────────────────────
+                  trainer tabs:
+                    • 不要侧边 padding（指板需要贴边）
+                    • paddingBottom 为 TabBar 留出空间（~72px）
+                    • overflow: hidden
+                  home/persona tabs:
+                    • 保留 px-20 侧边 padding
+                    • home: overflow auto（可滚动）
+              ─────────────────────────────────────────────────────── */}
+              <div style={isTrainerTab ? {
+                maxWidth: 560, margin: "0 auto",
+                height: "100dvh",
+                display: "flex",
+                flexDirection: "column",
+                paddingTop: "env(safe-area-inset-top, 0px)",
+                // TabBar 约 68px 高 + safe area bottom
+                paddingBottom: "calc(68px + env(safe-area-inset-bottom, 0px))",
+                position: "relative", zIndex: 1,
+                overflow: "hidden",
+              } : {
                 maxWidth: 560, margin: "0 auto",
                 flex: 1,
                 display: "flex",
@@ -264,74 +280,50 @@ export default function App() {
                 position: "relative", zIndex: 1,
                 overflow: (activeTab === "home" || activeTab === "persona") ? "auto" : "hidden",
               }}>
-                <header style={{
-                  display: "flex", alignItems: "center", justifyContent: "space-between",
-                  height: 72,
-                  flexShrink: 0,
-                }}>
-                  <motion.div
-                    layoutId="app-title"
-                    style={{ fontSize: 34, fontWeight: 700, letterSpacing: -0.5, color: T.textPrimary, fontFamily: FONT_DISPLAY }}
-                  >
-                    {activeTab === "home" ? (lang === "en" ? "Home" : "首页") : (lang === "en" ? "My Training" : "我的训练")}
-                  </motion.div>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    {/* 深/浅切换：改 themeId，不改 colorMode */}
-                    <motion.button
-                      whileTap={{ scale: 0.88 }} transition={DT.springSnap}
-                      onClick={themeCtxValue.toggle}
-                      style={{
-                        width: 34, height: 34, borderRadius: 10,
-                        background: T.surface2, border: `0.5px solid ${T.border}`,
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 16, cursor: "pointer",
-                      }}
-                    >
-                      {isDark ? "☀️" : "🌙"}
-                    </motion.button>
-                    <motion.button
-                      whileTap={{ scale: 0.88 }} transition={DT.springSnap}
-                      onClick={() => setCcOpen(true)}
-                      style={{
-                        width: 34, height: 34, borderRadius: 10,
-                        background: T.surface2, border: `0.5px solid ${T.border}`,
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 16, cursor: "pointer",
-                      }}
-                    >
-                      ⚙️
-                    </motion.button>
-                  </div>
-                </header>
 
-                {/* Page indicator dots for current tab */}
-                <div style={{
-                  position: "absolute",
-                  right: 8,
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  zIndex: 30,
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 8,
-                  pointerEvents: "none",
-                }}>
-                  {[0, 1].map(idx => (
-                    <div
-                      key={idx}
-                      style={{
-                        width: mainPageIndex === idx ? 6 : 4,
-                        height: mainPageIndex === idx ? 18 : 4,
-                        borderRadius: 3,
-                        background: mainPageIndex === idx
-                          ? isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.4)"
-                          : isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.15)",
-                        transition: "all 0.2s ease",
-                      }}
-                    />
-                  ))}
-                </div>
+                {/* ── App Header — 仅在 home / persona 显示 ──────── */}
+                {!isTrainerTab && (
+                  <header style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    height: 72,
+                    flexShrink: 0,
+                  }}>
+                    <motion.div
+                      layoutId="app-title"
+                      style={{ fontSize: 34, fontWeight: 700, letterSpacing: -0.5, color: T.textPrimary, fontFamily: FONT_DISPLAY }}
+                    >
+                      {pageTitle}
+                    </motion.div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <motion.button
+                        whileTap={{ scale: 0.88 }} transition={DT.springSnap}
+                        onClick={themeCtxValue.toggle}
+                        style={{
+                          width: 34, height: 34, borderRadius: 10,
+                          background: T.surface2, border: `0.5px solid ${T.border}`,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          fontSize: 16, cursor: "pointer",
+                        }}
+                      >
+                        {isDark ? "☀️" : "🌙"}
+                      </motion.button>
+                      <motion.button
+                        whileTap={{ scale: 0.88 }} transition={DT.springSnap}
+                        onClick={() => setCcOpen(true)}
+                        style={{
+                          width: 34, height: 34, borderRadius: 10,
+                          background: T.surface2, border: `0.5px solid ${T.border}`,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          fontSize: 16, cursor: "pointer",
+                        }}
+                      >
+                        ⚙️
+                      </motion.button>
+                    </div>
+                  </header>
+                )}
 
+                {/* ── 页面内容 ────────────────────────────────────── */}
                 <AnimatePresence mode="wait">
                   {activeTab === "home" && (
                     <HomeView
@@ -356,7 +348,6 @@ export default function App() {
                       settings={settings}
                       audioEnabled={audioEnabled}
                       setAudioEnabled={setAudioEnabled}
-                      onCCChange={setTrainerCCOpen}
                     />
                   )}
                   {activeTab === "changes" && (
@@ -392,7 +383,8 @@ export default function App() {
                 </AnimatePresence>
               </div>
 
-              {!trainerCCOpen && <TabBar activeTab={activeTab} onTabChange={handleTabChange} />}
+              {/* ── TabBar — 始终渲染，z-index:40 高于所有内容层 ─── */}
+              <TabBar activeTab={activeTab} onTabChange={handleTabChange} />
 
               <SettingsSheet
                 open={ccOpen} onClose={() => setCcOpen(false)}
@@ -420,18 +412,22 @@ export default function App() {
   );
 }
 
-
-
 // ---
-// APP.2.3 — 2026-03-05
+// APP.2.3 — 2026-03-09
 //
 // Updated:
-// - 移除 import Showcase 和 return <Showcase /> 临时预览代码
-// - App 恢复正常流程：Onboarding → PreFlight → Main
+// - TAB_TITLES 完整 6-tab × 3-lang 映射（en/zh/mixed 全部正确）
+// - App header 仅在 home/persona 渲染（trainer 页面不显示"我的训练"等标题）
+// - TabBar 始终渲染（删除 trainerCCOpen 条件，进入任何 trainer 都能切换 tab）
+// - trainer 内容区 paddingBottom 为 TabBar 留出空间，消除 BottomBar 被遮挡问题
+// - 删除 trainerCCOpen / setTrainerCCOpen 状态（不再需要）
+// - IntervalTrainer 删除 onCCChange prop（不再传递）
 //
 // Fixed:
-// - App 被 Showcase 接管，无法看到实际 UI
+// - bug: 进入 interval trainer 后 TabBar 消失，无法切换页面
+// - bug: 所有非 home 页面都显示"我的训练"，忽略实际 tab
+// - bug: "我的训练" + ☀️ + ⚙️ 从训练器页面透出来
 //
 // Pending:
-// - onStartTuner 回调接入 TunerView 入口（T16 配合）
+// - trainer 内容区 paddingBottom 用了固定 68px，未来可改为 CSS var
 // ---

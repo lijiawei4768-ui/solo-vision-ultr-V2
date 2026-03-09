@@ -313,22 +313,22 @@ function VerticalCardStack({ cards, activeId, onSelect, renderCard }) {
 
   return (
     <div
-      style={{ position: "relative", height: 120, overflow: "hidden", userSelect: "none", WebkitUserSelect: "none" }}
+      style={{ position: "relative", height: 140, overflow: "hidden", userSelect: "none", WebkitUserSelect: "none" }}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
       {[
-        { card: cards[prevIdx],    y: -48 + drag, scale: 0.92, opacity: 0.55 },
+        { card: cards[prevIdx],    y: -62 + drag, scale: 0.92, opacity: 0.50 },
         { card: cards[currentIdx], y:   0 + drag, scale: 1.0,  opacity: 1.0  },
-        { card: cards[nextIdx],    y:  48 + drag, scale: 0.92, opacity: 0.55 },
+        { card: cards[nextIdx],    y:  62 + drag, scale: 0.92, opacity: 0.50 },
       ].map(({ card, y, scale, opacity }, i) => (
         <motion.div
           key={card.id + "-" + i}
           animate={{ y, scale, opacity }}
           transition={SPRINGS.jelly}
           onClick={() => i !== 1 ? onSelect(card.id) : undefined}
-          style={{ position: "absolute", width: "100%", left: 0, top: "50%", marginTop: -28 }}
+          style={{ position: "absolute", width: "100%", left: 0, top: "50%", marginTop: -31 }}
         >
           {renderCard(card, i === 1)}
         </motion.div>
@@ -437,6 +437,10 @@ function BottomBar({ content, space, flow, onOpen, isOpen }) {
         WebkitUserSelect: "none",
         WebkitTouchCallout: "none",
         touchAction: "none",
+        // ── 规范要求：T.surface2 背景，顶部圆角，贴底 ──────
+        background: T.surface2 ?? "rgba(255,255,255,0.06)",
+        borderRadius: "16px 16px 0 0",
+        borderTop: `0.5px solid ${T.border ?? "rgba(255,255,255,0.1)"}`,
       }}
     >
       {/* Handle line */}
@@ -682,43 +686,43 @@ function ControlCenter({
               Practice Settings
             </div>
 
-            {/* 2×2 Grid */}
+            {/* 2×2 Grid
+                行1: Mode (VerticalCardStack) + Intervals (VerticalCardStack)
+                行2: Space chip                + Flow chip
+                每个 renderCard 内 motion.div 固定 height:62px 匹配偏移量 ±62px
+            */}
             <div style={{
               display: "grid",
               gridTemplateColumns: "1fr 1fr",
-              gridTemplateRows: "1fr auto",
+              gridTemplateRows: "140px auto",
               gap: 10, flex: 1, minHeight: 0,
             }}>
               {/* Mode stack */}
-              <div style={{ minHeight: 0 }}>
+              <div>
                 <VerticalCardStack
                   cards={MODE_CARDS}
                   activeId={contentMode}
                   onSelect={id => { if (id !== contentMode) onCycleMode(id); }}
                   renderCard={(card, isActive) => (
                     <motion.div whileTap={{ scale: 0.96 }} style={{
-                      padding: "10px", borderRadius: 16,
+                      height: 62,
+                      padding: "8px 10px", borderRadius: 16,
                       background: isActive ? (T.accentSub ?? "rgba(232,162,60,0.1)") : (T.surface2 ?? "rgba(255,255,255,0.06)"),
                       border: `1px solid ${isActive ? (T.accentBorder ?? "rgba(232,162,60,0.35)") : (T.border ?? "rgba(255,255,255,0.1)")}`,
                       display: "flex", flexDirection: "column",
-                      alignItems: "center", justifyContent: "center", gap: 4,
+                      alignItems: "center", justifyContent: "center", gap: 3,
+                      overflow: "hidden",
                     }}>
-                      <div style={{
-                        width: 40, height: 40, borderRadius: 12,
-                        background: isActive ? (T.accent ?? "#E8A23C") : "rgba(255,255,255,0.07)",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                      }}>
-                        <ModeIcon mode={card.id} size={22} color={isActive ? "#1a1a1a" : (T.textSecondary ?? "rgba(255,255,255,0.55)")} />
-                      </div>
-                      <span style={{ fontSize: 10, fontWeight: 600, color: isActive ? (T.accent ?? "#E8A23C") : T.textPrimary }}>{card.label}</span>
-                      <span style={{ fontSize: 8, color: T.textTertiary }}>{card.sublabel}</span>
+                      <ModeIcon mode={card.id} size={20} color={isActive ? (T.accent ?? "#E8A23C") : (T.textSecondary ?? "rgba(255,255,255,0.55)")} />
+                      <span style={{ fontSize: 10, fontWeight: 600, color: isActive ? (T.accent ?? "#E8A23C") : T.textPrimary, lineHeight: 1 }}>{card.label}</span>
+                      <span style={{ fontSize: 8, color: T.textTertiary, lineHeight: 1 }}>{card.sublabel}</span>
                     </motion.div>
                   )}
                 />
               </div>
 
               {/* Intervals stack */}
-              <div style={{ minHeight: 0 }}>
+              <div>
                 <VerticalCardStack
                   cards={INTERVAL_CARDS}
                   activeId={intervalPreset}
@@ -729,27 +733,23 @@ function ControlCenter({
                   }}
                   renderCard={(card, isActive) => (
                     <motion.div whileTap={{ scale: 0.96 }} style={{
-                      padding: "10px", borderRadius: 16,
+                      height: 62,
+                      padding: "8px 10px", borderRadius: 16,
                       background: isActive ? (T.accentSub ?? "rgba(232,162,60,0.1)") : (T.surface2 ?? "rgba(255,255,255,0.06)"),
                       border: `1px solid ${isActive ? (T.accentBorder ?? "rgba(232,162,60,0.35)") : (T.border ?? "rgba(255,255,255,0.1)")}`,
                       display: "flex", flexDirection: "column",
-                      alignItems: "center", justifyContent: "center", gap: 4,
+                      alignItems: "center", justifyContent: "center", gap: 3,
+                      overflow: "hidden",
                     }}>
-                      <div style={{
-                        width: 40, height: 40, borderRadius: 12,
-                        background: isActive ? (T.accent ?? "#E8A23C") : "rgba(255,255,255,0.07)",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                      }}>
-                        <svg width="22" height="22" viewBox="0 0 22 22" fill="none"
-                          stroke={isActive ? "#1a1a1a" : (T.textSecondary ?? "rgba(255,255,255,0.55)")}
-                          strokeWidth="1.5" strokeLinecap="round">
-                          <circle cx="6" cy="11" r="2.5" fill={isActive ? "#1a1a1a" : (T.textSecondary ?? "rgba(255,255,255,0.55)")} stroke="none" />
-                          <circle cx="16" cy="11" r="2.5" />
-                          <path d="M8.5 10 Q11 6.5 13.5 10" />
-                        </svg>
-                      </div>
-                      <span style={{ fontSize: 10, fontWeight: 600, color: isActive ? (T.accent ?? "#E8A23C") : T.textPrimary }}>{card.label}</span>
-                      <span style={{ fontSize: 8, color: T.textTertiary }}>{card.sublabel}</span>
+                      <svg width="20" height="20" viewBox="0 0 22 22" fill="none"
+                        stroke={isActive ? (T.accent ?? "#E8A23C") : (T.textSecondary ?? "rgba(255,255,255,0.55)")}
+                        strokeWidth="1.5" strokeLinecap="round">
+                        <circle cx="6" cy="11" r="2.5" fill={isActive ? (T.accent ?? "#E8A23C") : (T.textSecondary ?? "rgba(255,255,255,0.55)")} stroke="none" />
+                        <circle cx="16" cy="11" r="2.5" />
+                        <path d="M8.5 10 Q11 6.5 13.5 10" />
+                      </svg>
+                      <span style={{ fontSize: 10, fontWeight: 600, color: isActive ? (T.accent ?? "#E8A23C") : T.textPrimary, lineHeight: 1 }}>{card.label}</span>
+                      <span style={{ fontSize: 8, color: T.textTertiary, lineHeight: 1 }}>{card.sublabel}</span>
                     </motion.div>
                   )}
                 />
@@ -1139,7 +1139,7 @@ function FlowEditor({ open, onClose, flow, setFlow, onApply }) {
 // ─────────────────────────────────────────────────────────────
 // MAIN COMPONENT — IntervalTrainer v4.0
 // ─────────────────────────────────────────────────────────────
-export function IntervalTrainer({ settings, audioEnabled, setAudioEnabled, onCCChange }) {
+export function IntervalTrainer({ settings, audioEnabled, setAudioEnabled }) {
   const T        = useT();
   const tuning   = settings.tuning;
   const calibCtx = useContext(CalibContext);
@@ -1181,16 +1181,14 @@ export function IntervalTrainer({ settings, audioEnabled, setAudioEnabled, onCCC
 
   const anyLayerOpen = showCC || showIVEditor || showSpaceEditor || showFlowEditor;
 
-  // ── BODY SCROLL LOCK + TAB HIDE ────────────────────────────
+  // ── BODY SCROLL LOCK ───────────────────────────────────────
+  // TabBar 始终可见（通过 App.jsx paddingBottom 留出空间）
+  // 不再需要 onCCChange 通知 App 隐藏 TabBar
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    document.body.style.height   = "100%";
-    onCCChange?.(true); // always hide Tab while trainer is mounted
     return () => {
       document.body.style.overflow = prev;
-      document.body.style.height   = "";
-      onCCChange?.(false);
     };
   }, []); // eslint-disable-line
 
@@ -1421,14 +1419,14 @@ export function IntervalTrainer({ settings, audioEnabled, setAudioEnabled, onCCC
         }
         transition={SPRINGS.sheetPresent}
         style={{
-          position: "fixed",
-          inset: 0,
-          zIndex: 2,
+          // 不再用 position:fixed — App.jsx 已为 trainer 内容区设置正确高度
+          // 此容器在普通文档流中填满父级空间，TabBar 始终可见
+          flex: 1,
+          minHeight: 0,
           display: "flex",
           flexDirection: "column",
           overflow: "hidden",
-          paddingTop:    "env(safe-area-inset-top, 0px)",
-          paddingBottom: "env(safe-area-inset-bottom, 0px)",
+          background: T.surface0,   // 背景填满，遮住 MeshBackground（修复透明漏光 bug）
           userSelect: "none",
           WebkitUserSelect: "none",
           WebkitTouchCallout: "none",
@@ -1438,7 +1436,11 @@ export function IntervalTrainer({ settings, audioEnabled, setAudioEnabled, onCCC
         onContextMenu={e => e.preventDefault()}
         {...longPress}
       >
-        {/* ── TOP BAR — 48px ────────────────────────── */}
+        {/* ── TRAINER HEADER — 48px ─────────────────────
+            左：训练名称 + 当前模式
+            右：MIC 按钮 + 信号条 + Streak + 准确率
+            App header 在 trainer 页面已隐藏，所以这里承担标题功能
+        ─────────────────────────────────────────────── */}
         <div style={{
           height: 48,
           display: "flex",
@@ -1447,34 +1449,57 @@ export function IntervalTrainer({ settings, audioEnabled, setAudioEnabled, onCCC
           paddingLeft: 16, paddingRight: 16,
           flexShrink: 0,
         }}>
-          {/* Mic toggle */}
-          <motion.button
-            onClick={() => setAudioEnabled?.(v => !v)}
-            whileTap={{ scale: 0.88 }}
-            transition={SPRINGS.tap}
-            style={{
-              height: 32, padding: "0 12px", borderRadius: 16,
-              fontSize: 11, fontWeight: 600, fontFamily: FONT_TEXT,
-              cursor: "pointer",
-              border: `0.5px solid ${audioEnabled ? "rgba(52,199,89,0.45)" : (T.border ?? "rgba(255,255,255,0.1)")}`,
-              background: audioEnabled ? "rgba(52,199,89,0.12)" : (T.surface2 ?? "rgba(255,255,255,0.06)"),
-              color: audioEnabled ? "#34C759" : (T.textTertiary ?? "rgba(255,255,255,0.35)"),
-              display: "flex", alignItems: "center", gap: 5,
-            }}
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-              <line x1="12" y1="19" x2="12" y2="23"/>
-              <line x1="8"  y1="23" x2="16" y2="23"/>
-            </svg>
-            {audioEnabled ? "MIC ON" : "MIC OFF"}
-          </motion.button>
+          {/* 左：标题 */}
+          <div>
+            <div style={{
+              fontSize: 17, fontWeight: 700, lineHeight: 1,
+              color: T.textPrimary, fontFamily: FONT_DISPLAY,
+              letterSpacing: -0.3,
+            }}>
+              Intervals
+            </div>
+            <div style={{
+              fontSize: 10, color: T.textTertiary, marginTop: 2,
+              fontFamily: FONT_TEXT, letterSpacing: 0.2,
+            }}>
+              {{
+                learning:  "Visual mode",
+                blind:     "Blind mode",
+                rootFirst: "Root first",
+                coreDrill: "Core drill",
+              }[contentMode] ?? contentMode}
+            </div>
+          </div>
 
-          {/* Signal + Streak + Score */}
+          {/* 右：MIC + 信号 + Streak + 准确率 */}
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {/* Mic toggle */}
+            <motion.button
+              onClick={() => setAudioEnabled?.(v => !v)}
+              whileTap={{ scale: 0.88 }}
+              transition={SPRINGS.tap}
+              style={{
+                height: 30, padding: "0 10px", borderRadius: 15,
+                fontSize: 10, fontWeight: 600, fontFamily: FONT_TEXT,
+                cursor: "pointer",
+                border: `0.5px solid ${audioEnabled ? "rgba(52,199,89,0.45)" : (T.border ?? "rgba(255,255,255,0.1)")}`,
+                background: audioEnabled ? "rgba(52,199,89,0.12)" : (T.surface2 ?? "rgba(255,255,255,0.06)"),
+                color: audioEnabled ? "#34C759" : (T.textTertiary ?? "rgba(255,255,255,0.35)"),
+                display: "flex", alignItems: "center", gap: 5,
+              }}
+            >
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                <line x1="12" y1="19" x2="12" y2="23"/>
+                <line x1="8"  y1="23" x2="16" y2="23"/>
+              </svg>
+              {audioEnabled ? "ON" : "OFF"}
+            </motion.button>
+
             <SignalBar rms={rms} enabled={audioEnabled} />
+
             <AnimatePresence>
               {streak > 0 && (
                 <motion.div
@@ -1484,11 +1509,11 @@ export function IntervalTrainer({ settings, audioEnabled, setAudioEnabled, onCCC
                   exit={{ scale: 0.5, opacity: 0 }}
                   transition={SPRINGS.correct}
                   style={{
-                    padding: "3px 10px", borderRadius: 10, fontSize: 11, fontWeight: 700,
+                    padding: "3px 8px", borderRadius: 10, fontSize: 11, fontWeight: 700,
                     background: "rgba(232,162,60,0.14)",
                     color: T.accent ?? "#E8A23C",
                     border: `0.5px solid ${T.accentBorder ?? "rgba(232,162,60,0.35)"}`,
-                    display: "flex", alignItems: "center", gap: 4,
+                    display: "flex", alignItems: "center", gap: 3,
                     fontFamily: FONT_MONO,
                   }}
                 >
@@ -1500,6 +1525,7 @@ export function IntervalTrainer({ settings, audioEnabled, setAudioEnabled, onCCC
                 </motion.div>
               )}
             </AnimatePresence>
+
             {score.total > 0 && (
               <div style={{ fontSize: 11, color: T.textTertiary, fontFamily: FONT_MONO }}>
                 {Math.round((score.correct / score.total) * 100)}%
@@ -2471,24 +2497,30 @@ export function TrainerHeader({
 }
 
 /*
-INTVL.4.0 — 2026-03-07
+INTVL.4.1 — 2026-03-10
 
 Updated:
-- 全新 L0 固定舞台布局（position:fixed, overflow:hidden）
-- 新增 FindModeCapsules（Find Root / Find Interval 两个胶囊，在 FocusCard 上方）
-- 新增 BottomBar（合并 Handle + StatusStrip，把手在上，4状态胶囊在下）
-- FocusCard 高度锁定 172px（与 Notes Trainer 一致）
-- ControlCenter 重写：iOS 风格半屏模态
-- L2PushScreen 新建
-- Space/Flow: 点击=切换预设，长按=进 L2
-- VerticalCardStack
-- FocusCardContent 响应 findMode
-- body scroll 在 trainer 挂载期间锁定
+- 删除 onCCChange prop 和相关 useEffect 调用（不再需要隐藏 TabBar）
+- L0 容器：position:fixed → flex:1（脱离 fixed，融入 App.jsx 正常文档流）
+- L0 容器：加 background:T.surface0（防止透明漏光 bug）
+- BottomBar：加 background:T.surface2 + borderRadius "16px 16px 0 0"（规范要求）
+- VerticalCardStack：height 120→140px，偏移 ±48→±62，marginTop -28→-31
+- ControlCenter grid：gridTemplateRows "1fr auto" → "140px auto"（明确行高，防止卡片压缩）
+- renderCard：加固定 height:62px，与偏移量对齐（修复卡片挤叠乱码 bug）
+- 图标尺寸优化：图标直接显示（删外层 40×40 圆框），保留规范的 Secondary Tool Icon 尺寸
+- TrainerHeader 重写：左侧加训练名 "Intervals" + 当前模式，右侧 MIC 更紧凑
+
+Fixed:
+- bug: L0 用 position:fixed 覆盖了 TabBar，进入 Intervals 后无法切换其他 tab
+- bug: 根容器透明，App 的"我的训练"标题和 ☀️⚙️ 从后面透出来
+- bug: BottomBar 无背景色，与页面内容区视觉边界不清
+- bug: VerticalCardStack 中卡片间距不足，三张卡片叠在一起（乱码感）
+- bug: ControlCenter grid 行高计算不稳定，Mode/Intervals 压缩变形
 
 Pending:
+- L2 规范对齐（当前 L2 实际是规范里的 L3，缺少 QuickAdjustLayer 中间层）
 - 指板 5 品窗口追踪动画
 - iPad / PC 布局适配
-- 指板建模系统
-- 泛音识别增强
 - 48 个音程形状系统
 */
+</file>

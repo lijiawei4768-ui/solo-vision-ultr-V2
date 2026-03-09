@@ -7648,8 +7648,8 @@ import { ThemeContext, CalibContext } from "../contexts";
 import { calculateTargetCoordinates } from "../engine/theory/TwoPointSystem";
 import { L2PushScreen } from "../components/L2PushScreen";
 import {
-  STRING_NAMES, MODE_SEQUENCE, MODE_CARDS, INTERVAL_CARDS,
-  INTERVAL_PRESETS, INTERVAL_CYCLE, SPACE_PRESETS, SPACE_CYCLE,
+  STRING_NAMES, MODE_CARDS, INTERVAL_CARDS,
+  INTERVAL_PRESETS, SPACE_PRESETS, SPACE_CYCLE,
   FLOW_PRESETS, FLOW_CYCLE, ENHARMONIC_PAIRS,
   SEQ_INFO, ROOT_INFO, ENTRY_INFO, getShapeType,
 } from "./intervals/constants";
