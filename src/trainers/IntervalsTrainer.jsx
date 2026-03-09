@@ -1,36 +1,11 @@
 // ─────────────────────────────────────────────────────────────
-// INTERVAL TRAINER v4.0 — Full UI Rebuild
+// INTERVAL TRAINER v5.0 — 动态视口 + 响应式布局 + L2 QuickAdjust
 //
-// L0: Fixed stage (position:fixed, overflow:hidden)
-//   ├── TopBar            48px   [MIC ON/OFF | SIGNAL | STREAK]
-//   ├── FindModeCapsules  40px   [Find Root] [Find Interval]  ← NEW
-//   ├── FocusCard        172px   locked height (= Notes trainer)
-//   ├── FretboardPanel   flex:1  swipe-up to open L1
-//   └── BottomBar         56px   HANDLE (top) + 4 status chips (bottom)
-//
-// L1: ControlCenter — iOS style half-sheet
-//   Backdrop tap OR swipe-down to dismiss (no × button)
-//   ├── Mode card stack  (swipe/tap to cycle)
-//   ├── Intervals card   (swipe/tap to cycle, custom → L2)
-//   ├── Space chip       (tap = next preset, long-press = L2)
-//   └── Flow chip        (tap = next preset, long-press = L2)
-//
-// L2: Editors — slide in from right, swipe-right from left edge to dismiss
-// (no × button — pure iOS push navigation)
-//
-// Fixed vs v3.1:
-//   • Tab hidden only while trainer mounted (correct)
-//   • BottomBar = merged Handle + StatusStrip (handle on top)
-//   • FindModeCapsules above FocusCard (NEW)
-//   • FocusCard height locked at 172px
-//   • L1 uses backdrop blur + swipe-down close
-//   • L2 uses right-push + left-edge swipe close
-//   • Space/Flow: tap = cycle preset, long-press → L2
-//   • Long-press visual: border accent + haptic vibrate([8,50,8])
-//   • Body scroll locked while trainer is mounted
-//   • All audio/pitch detection 100% preserved
+// L0: position:fixed 全屏舞台（手机/平板/PC自适应）
+// L1: ControlCenter — iOS half-sheet（55% Mode+Intervals / 45% SpaceChip+FlowChip）
+// L2: QuickAdjustLayer — iOS 控制中心式快调面板
+// L3: Editors — L2PushScreen 全屏编辑器（从 L2 "更多设置" 进入）
 // ─────────────────────────────────────────────────────────────
-
 import React, {
   useState, useEffect, useRef, useCallback, useContext,
 } from "react";
@@ -61,7 +36,31 @@ function useT() {
 
 // ─────────────────────────────────────────────────────────────
 // SVG Icon Components
+
+function useT() {
+  const ctx = useContext(ThemeContext);
+  return ctx?.tokens ?? DT;
+}
+
 // ─────────────────────────────────────────────────────────────
+// useBreakpoint — 响应式断点 hook
+// ─────────────────────────────────────────────────────────────
+function useBreakpoint() {
+  const [bp, setBp] = useState(() => {
+    const w = window.innerWidth;
+    return w >= 1024 ? "pc" : w >= 600 ? "tablet" : "mobile";
+  });
+  useEffect(() => {
+    const fn = () => {
+      const w = window.innerWidth;
+      setBp(w >= 1024 ? "pc" : w >= 600 ? "tablet" : "mobile");
+    };
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
+  return bp;
+}
+
 function ModeIcon({ mode, size = 20, color = "currentColor" }) {
   switch (mode) {
     case "learning":
@@ -548,13 +547,193 @@ function FocusCardContent({ findMode, contentMode, stage, rootNote, ivName }) {
 // ─────────────────────────────────────────────────────────────
 // ControlCenter — iOS-style half-sheet, swipe-down to close
 // ─────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────
+// SpaceChip — L1 第二行左侧：点击=循环预设，长按=进L2
+// ─────────────────────────────────────────────────────────────
+function SpaceChip({ space, onTap, onLongPress }) {
+  const T = useT();
+  const timerRef = useRef(null);
+  const [lpActive, setLpActive] = useState(false);
+
+  const spaceMeta = SPACE_PRESETS.find(p => p.id === space.preset) ?? SPACE_PRESETS[0];
+
+  function down() {
+    setLpActive(true);
+    timerRef.current = setTimeout(() => {
+      setLpActive(false);
+      onLongPress?.();
+    }, 600);
+  }
+  function up(shouldTap = true) {
+    const wasActive = lpActive;
+    clearTimeout(timerRef.current);
+    setLpActive(false);
+    if (wasActive && shouldTap) onTap?.();
+  }
+
+  return (
+    <motion.div
+      onTouchStart={down}
+      onTouchEnd={() => up(true)}
+      onTouchMove={() => { clearTimeout(timerRef.current); setLpActive(false); }}
+      onMouseDown={down}
+      onMouseUp={() => up(true)}
+      onMouseLeave={() => { clearTimeout(timerRef.current); setLpActive(false); }}
+      whileTap={{ scale: 0.96 }}
+      style={{
+        flex: 1,
+        height: "100%",
+        borderRadius: 14,
+        background: lpActive ? (T.accentSub ?? "rgba(232,162,60,0.1)") : (T.surface2 ?? "rgba(255,255,255,0.06)"),
+        border: `0.5px solid ${space.enabled ? (T.accentBorder ?? "rgba(232,162,60,0.35)") : (T.border ?? "rgba(255,255,255,0.1)")}`,
+        display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center",
+        gap: 4, cursor: "pointer",
+        userSelect: "none", WebkitUserSelect: "none",
+        transition: "background 0.15s, border-color 0.15s",
+      }}
+    >
+      <ControlIcon icon="space" size={20} color={space.enabled ? (T.accent ?? "#E8A23C") : (T.textSecondary ?? "rgba(255,255,255,0.55)")} />
+      <span style={{ fontSize: 14, fontWeight: 700, color: space.enabled ? (T.accent ?? "#E8A23C") : T.textPrimary, lineHeight: 1 }}>
+        {spaceMeta.label}
+      </span>
+      <span style={{ fontSize: 11, color: T.textTertiary, lineHeight: 1 }}>
+        {space.fretRange.min}–{space.fretRange.max}
+      </span>
+    </motion.div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// FlowChip — L1 第二行右侧：点击展开选单，长按=进L2
+// ─────────────────────────────────────────────────────────────
+function FlowChip({ flow, onSelect, onLongPress }) {
+  const T = useT();
+  const [open, setOpen] = useState(false);
+  const timerRef = useRef(null);
+  const [lpFired, setLpFired] = useState(false);
+
+  const flowMeta = FLOW_PRESETS.find(p => p.id === flow.preset) ?? FLOW_PRESETS[0];
+
+  const orderOptions = FLOW_PRESETS.map(p => ({ id: p.id, label: p.label }));
+
+  function down() {
+    setLpFired(false);
+    timerRef.current = setTimeout(() => {
+      setLpFired(true);
+      setOpen(false);
+      onLongPress?.();
+    }, 600);
+  }
+  function up() {
+    clearTimeout(timerRef.current);
+    if (!lpFired) setOpen(o => !o);
+    setLpFired(false);
+  }
+
+  return (
+    <div style={{ flex: 1, height: "100%", position: "relative" }}>
+      <motion.div
+        onMouseDown={down}
+        onMouseUp={up}
+        onMouseLeave={() => clearTimeout(timerRef.current)}
+        onTouchStart={down}
+        onTouchEnd={up}
+        onTouchMove={() => clearTimeout(timerRef.current)}
+        whileTap={{ scale: 0.96 }}
+        style={{
+          width: "100%", height: "100%",
+          borderRadius: 14,
+          background: T.surface2 ?? "rgba(255,255,255,0.06)",
+          border: `0.5px solid ${flow.enabled ? (T.accentBorder ?? "rgba(232,162,60,0.35)") : (T.border ?? "rgba(255,255,255,0.1)")}`,
+          display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center",
+          gap: 4, cursor: "pointer",
+          userSelect: "none", WebkitUserSelect: "none",
+        }}
+      >
+        <ControlIcon icon="flow" size={20} color={flow.enabled ? (T.accent ?? "#E8A23C") : (T.textSecondary ?? "rgba(255,255,255,0.55)")} />
+        <span style={{ fontSize: 14, fontWeight: 700, color: flow.enabled ? (T.accent ?? "#E8A23C") : T.textPrimary, lineHeight: 1 }}>
+          {flowMeta.label}
+        </span>
+        <span style={{ fontSize: 11, color: T.textTertiary, lineHeight: 1 }}>tap to change</span>
+      </motion.div>
+
+      {/* Dropdown list — iOS 专注模式风格 */}
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            key="flow-dropdown"
+            initial={{ opacity: 0, scaleY: 0.7, y: 10 }}
+            animate={{ opacity: 1, scaleY: 1, y: 0 }}
+            exit={{ opacity: 0, scaleY: 0.7, y: 10 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+            style={{
+              position: "absolute",
+              bottom: "calc(100% + 8px)",
+              left: "-50%", width: "200%",
+              background: "rgba(28,28,30,0.96)",
+              backdropFilter: "blur(20px)",
+              WebkitBackdropFilter: "blur(20px)",
+              borderRadius: 16,
+              border: "0.5px solid rgba(255,255,255,0.1)",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+              overflow: "hidden",
+              zIndex: 300,
+              transformOrigin: "bottom center",
+            }}
+          >
+            {orderOptions.map(opt => {
+              const isActive = flow.preset === opt.id;
+              return (
+                <motion.div
+                  key={opt.id}
+                  whileTap={{ background: "rgba(255,255,255,0.06)" }}
+                  onClick={() => { onSelect(opt.id); setOpen(false); }}
+                  style={{
+                    height: 44, display: "flex", alignItems: "center",
+                    padding: "0 14px", gap: 12, cursor: "pointer",
+                    borderBottom: "0.5px solid rgba(255,255,255,0.06)",
+                  }}
+                >
+                  {/* 选中圆圈 */}
+                  <div style={{
+                    width: 20, height: 20, borderRadius: 10,
+                    background: isActive ? (T.accent ?? "#E8A23C") : "transparent",
+                    border: `1.5px solid ${isActive ? (T.accent ?? "#E8A23C") : "rgba(255,255,255,0.25)"}`,
+                    flexShrink: 0,
+                  }} />
+                  <span style={{
+                    fontSize: 14, fontWeight: isActive ? 700 : 400,
+                    color: isActive ? (T.accent ?? "#E8A23C") : "rgba(255,255,255,0.85)",
+                    fontFamily: FONT_TEXT,
+                  }}>
+                    {opt.label}
+                  </span>
+                </motion.div>
+              );
+            })}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// ControlCenter — L1: iOS-style half-sheet
+// 布局: 上55% (Mode + Intervals VerticalCardStack)
+//       下45% (SpaceChip + FlowChip)
+// ─────────────────────────────────────────────────────────────
 function ControlCenter({
   open, onClose,
   contentMode, onCycleMode,
   intervalPreset, onSetIntervalPreset,
   space, onCycleSpacePreset,
-  flow, onCycleFlowPreset,
-  onEditIntervals, onEditSpace, onEditFlow,
+  flow, onFlowPresetSelect,
+  onEditIntervals,
+  onOpenL2,             // (module: "space" | "flow" | "intervals") => void
 }) {
   const T = useT();
   const startYRef = useRef(null);
@@ -571,59 +750,18 @@ function ControlCenter({
     setDragY(0);
     startYRef.current = null;
   }
-
-  // Space long-press
-  const spaceTimerRef       = useRef(null);
-  const [spaceLPActive, setSpaceLPActive] = useState(false);
-
-  function spaceDown() {
-    setSpaceLPActive(true);
-    spaceTimerRef.current = setTimeout(() => {
-      setSpaceLPActive(false);
-      navigator.vibrate?.([8, 50, 8]);
-      onClose();
-      setTimeout(onEditSpace, 80);
-    }, 500);
+  // PC 鼠标下拉关闭
+  function onPanelMouseDown(e) { startYRef.current = e.clientY; setDragY(0); }
+  function onPanelMouseMove(e) {
+    if (startYRef.current === null || e.buttons !== 1) return;
+    const dy = e.clientY - startYRef.current;
+    if (dy > 0) setDragY(dy);
   }
-  function spaceUp(cycle = true) {
-    clearTimeout(spaceTimerRef.current);
-    if (spaceLPActive && cycle) onCycleSpacePreset();
-    setSpaceLPActive(false);
+  function onPanelMouseUp() {
+    if (dragY > 60) onClose();
+    setDragY(0);
+    startYRef.current = null;
   }
-
-  // Flow long-press
-  const flowTimerRef        = useRef(null);
-  const [flowLPActive, setFlowLPActive] = useState(false);
-
-  function flowDown() {
-    setFlowLPActive(true);
-    flowTimerRef.current = setTimeout(() => {
-      setFlowLPActive(false);
-      navigator.vibrate?.([8, 50, 8]);
-      onClose();
-      setTimeout(onEditFlow, 80);
-    }, 500);
-  }
-  function flowUp(cycle = true) {
-    clearTimeout(flowTimerRef.current);
-    if (flowLPActive && cycle) onCycleFlowPreset();
-    setFlowLPActive(false);
-  }
-
-  const spaceMeta = SPACE_PRESETS.find(p => p.id === space.preset) ?? SPACE_PRESETS[0];
-  const flowMeta  = FLOW_PRESETS.find(p => p.id === flow.preset)   ?? FLOW_PRESETS[0];
-
-  const chipBase = (active, lpActive) => ({
-    borderRadius: 14,
-    background: active ? (T.accentSub ?? "rgba(232,162,60,0.1)") : (T.surface2 ?? "rgba(255,255,255,0.06)"),
-    border: `1px solid ${lpActive ? (T.accent ?? "#E8A23C") : active ? (T.accentBorder ?? "rgba(232,162,60,0.35)") : (T.border ?? "rgba(255,255,255,0.1)")}`,
-    padding: "10px 8px",
-    display: "flex", flexDirection: "column",
-    alignItems: "center", justifyContent: "center",
-    gap: 4, cursor: "pointer",
-    userSelect: "none", WebkitUserSelect: "none",
-    transition: "border-color 0.15s",
-  });
 
   return (
     <AnimatePresence>
@@ -654,6 +792,9 @@ function ControlCenter({
             onTouchStart={onPanelTouchStart}
             onTouchMove={onPanelTouchMove}
             onTouchEnd={onPanelTouchEnd}
+            onMouseDown={onPanelMouseDown}
+            onMouseMove={onPanelMouseMove}
+            onMouseUp={onPanelMouseUp}
             style={{
               position: "fixed", bottom: 0, left: 0, right: 0,
               height: "54%",
@@ -666,137 +807,117 @@ function ControlCenter({
               boxShadow: "0 -2px 40px rgba(0,0,0,0.55)",
               zIndex: 101,
               display: "flex", flexDirection: "column",
-              padding: "0 14px",
               paddingBottom: "max(20px, env(safe-area-inset-bottom))",
               userSelect: "none", WebkitUserSelect: "none",
-              overflow: "hidden",
+              overflow: "visible",
             }}
           >
             {/* Drag handle */}
-            <div style={{ display: "flex", justifyContent: "center", padding: "10px 0" }}>
+            <div style={{ display: "flex", justifyContent: "center", padding: "10px 0", flexShrink: 0 }}>
               <div style={{ width: 36, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.22)" }} />
             </div>
 
             {/* Title */}
             <div style={{
               fontSize: 10, color: T.textTertiary, letterSpacing: 1.2,
-              textTransform: "uppercase", marginBottom: 10,
-              textAlign: "center", fontFamily: FONT_TEXT,
+              textTransform: "uppercase", marginBottom: 8,
+              textAlign: "center", fontFamily: FONT_TEXT, flexShrink: 0,
             }}>
               Practice Settings
             </div>
 
-            {/* 2×2 Grid
-                行1: Mode (VerticalCardStack) + Intervals (VerticalCardStack)
-                行2: Space chip                + Flow chip
-                每个 renderCard 内 motion.div 固定 height:62px 匹配偏移量 ±62px
-            */}
+            {/* ── 主布局：flex column, 上55% + 下45% ── */}
             <div style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gridTemplateRows: "140px auto",
-              gap: 10, flex: 1, minHeight: 0,
+              display: "flex", flexDirection: "column",
+              flex: 1, gap: 8, padding: "0 12px 12px", minHeight: 0,
             }}>
-              {/* Mode stack */}
-              <div>
-                <VerticalCardStack
-                  cards={MODE_CARDS}
-                  activeId={contentMode}
-                  onSelect={id => { if (id !== contentMode) onCycleMode(id); }}
-                  renderCard={(card, isActive) => (
-                    <motion.div whileTap={{ scale: 0.96 }} style={{
-                      height: 62,
-                      padding: "8px 10px", borderRadius: 16,
-                      background: isActive ? (T.accentSub ?? "rgba(232,162,60,0.1)") : (T.surface2 ?? "rgba(255,255,255,0.06)"),
-                      border: `1px solid ${isActive ? (T.accentBorder ?? "rgba(232,162,60,0.35)") : (T.border ?? "rgba(255,255,255,0.1)")}`,
-                      display: "flex", flexDirection: "column",
-                      alignItems: "center", justifyContent: "center", gap: 3,
-                      overflow: "hidden",
-                    }}>
-                      <ModeIcon mode={card.id} size={20} color={isActive ? (T.accent ?? "#E8A23C") : (T.textSecondary ?? "rgba(255,255,255,0.55)")} />
-                      <span style={{ fontSize: 10, fontWeight: 600, color: isActive ? (T.accent ?? "#E8A23C") : T.textPrimary, lineHeight: 1 }}>{card.label}</span>
-                      <span style={{ fontSize: 8, color: T.textTertiary, lineHeight: 1 }}>{card.sublabel}</span>
-                    </motion.div>
-                  )}
-                />
+              {/* 第一行 55%：Mode + Intervals VerticalCardStack */}
+              <div style={{ display: "flex", gap: 8, flex: "0 0 55%", minHeight: 0 }}>
+                <div style={{ flex: 1, minHeight: 0 }}>
+                  <VerticalCardStack
+                    cards={MODE_CARDS}
+                    activeId={contentMode}
+                    onSelect={id => { if (id !== contentMode) onCycleMode(id); }}
+                    renderCard={(card, isActive) => (
+                      <motion.div whileTap={{ scale: 0.96 }} style={{
+                        height: 62,
+                        padding: "8px 10px", borderRadius: 16,
+                        background: isActive ? (T.accentSub ?? "rgba(232,162,60,0.1)") : (T.surface2 ?? "rgba(255,255,255,0.06)"),
+                        border: `1px solid ${isActive ? (T.accentBorder ?? "rgba(232,162,60,0.35)") : (T.border ?? "rgba(255,255,255,0.1)")}`,
+                        display: "flex", flexDirection: "column",
+                        alignItems: "center", justifyContent: "center", gap: 3,
+                        overflow: "hidden",
+                      }}>
+                        <ModeIcon mode={card.id} size={20} color={isActive ? (T.accent ?? "#E8A23C") : (T.textSecondary ?? "rgba(255,255,255,0.55)")} />
+                        <span style={{ fontSize: 10, fontWeight: 600, color: isActive ? (T.accent ?? "#E8A23C") : T.textPrimary, lineHeight: 1 }}>{card.label}</span>
+                        <span style={{ fontSize: 8, color: T.textTertiary, lineHeight: 1 }}>{card.sublabel}</span>
+                      </motion.div>
+                    )}
+                  />
+                </div>
+                <div style={{ flex: 1, minHeight: 0 }}>
+                  <VerticalCardStack
+                    cards={INTERVAL_CARDS}
+                    activeId={intervalPreset}
+                    onSelect={id => {
+                      const p = INTERVAL_PRESETS.find(x => x.id === id);
+                      if (id === "custom") { onClose(); setTimeout(onEditIntervals, 80); }
+                      else if (p) onSetIntervalPreset(id, p.intervals);
+                    }}
+                    renderCard={(card, isActive) => (
+                      <motion.div whileTap={{ scale: 0.96 }} style={{
+                        height: 62,
+                        padding: "8px 10px", borderRadius: 16,
+                        background: isActive ? (T.accentSub ?? "rgba(232,162,60,0.1)") : (T.surface2 ?? "rgba(255,255,255,0.06)"),
+                        border: `1px solid ${isActive ? (T.accentBorder ?? "rgba(232,162,60,0.35)") : (T.border ?? "rgba(255,255,255,0.1)")}`,
+                        display: "flex", flexDirection: "column",
+                        alignItems: "center", justifyContent: "center", gap: 3,
+                        overflow: "hidden",
+                      }}>
+                        <svg width="20" height="20" viewBox="0 0 22 22" fill="none"
+                          stroke={isActive ? (T.accent ?? "#E8A23C") : (T.textSecondary ?? "rgba(255,255,255,0.55)")}
+                          strokeWidth="1.5" strokeLinecap="round">
+                          <circle cx="6" cy="11" r="2.5" fill={isActive ? (T.accent ?? "#E8A23C") : (T.textSecondary ?? "rgba(255,255,255,0.55)")} stroke="none" />
+                          <circle cx="16" cy="11" r="2.5" />
+                          <path d="M8.5 10 Q11 6.5 13.5 10" />
+                        </svg>
+                        <span style={{ fontSize: 10, fontWeight: 600, color: isActive ? (T.accent ?? "#E8A23C") : T.textPrimary, lineHeight: 1 }}>{card.label}</span>
+                        <span style={{ fontSize: 8, color: T.textTertiary, lineHeight: 1 }}>{card.sublabel}</span>
+                      </motion.div>
+                    )}
+                  />
+                </div>
               </div>
 
-              {/* Intervals stack */}
-              <div>
-                <VerticalCardStack
-                  cards={INTERVAL_CARDS}
-                  activeId={intervalPreset}
-                  onSelect={id => {
-                    const p = INTERVAL_PRESETS.find(x => x.id === id);
-                    if (id === "custom") { onClose(); setTimeout(onEditIntervals, 80); }
-                    else if (p) onSetIntervalPreset(id, p.intervals);
+              {/* 第二行 45%：SpaceChip + FlowChip */}
+              <div style={{ display: "flex", gap: 8, flex: "0 0 45%", minHeight: 0 }}>
+                <SpaceChip
+                  space={space}
+                  onTap={onCycleSpacePreset}
+                  onLongPress={() => {
+                    haptic([8, 50, 8]);
+                    onClose();
+                    setTimeout(() => onOpenL2?.("space"), 80);
                   }}
-                  renderCard={(card, isActive) => (
-                    <motion.div whileTap={{ scale: 0.96 }} style={{
-                      height: 62,
-                      padding: "8px 10px", borderRadius: 16,
-                      background: isActive ? (T.accentSub ?? "rgba(232,162,60,0.1)") : (T.surface2 ?? "rgba(255,255,255,0.06)"),
-                      border: `1px solid ${isActive ? (T.accentBorder ?? "rgba(232,162,60,0.35)") : (T.border ?? "rgba(255,255,255,0.1)")}`,
-                      display: "flex", flexDirection: "column",
-                      alignItems: "center", justifyContent: "center", gap: 3,
-                      overflow: "hidden",
-                    }}>
-                      <svg width="20" height="20" viewBox="0 0 22 22" fill="none"
-                        stroke={isActive ? (T.accent ?? "#E8A23C") : (T.textSecondary ?? "rgba(255,255,255,0.55)")}
-                        strokeWidth="1.5" strokeLinecap="round">
-                        <circle cx="6" cy="11" r="2.5" fill={isActive ? (T.accent ?? "#E8A23C") : (T.textSecondary ?? "rgba(255,255,255,0.55)")} stroke="none" />
-                        <circle cx="16" cy="11" r="2.5" />
-                        <path d="M8.5 10 Q11 6.5 13.5 10" />
-                      </svg>
-                      <span style={{ fontSize: 10, fontWeight: 600, color: isActive ? (T.accent ?? "#E8A23C") : T.textPrimary, lineHeight: 1 }}>{card.label}</span>
-                      <span style={{ fontSize: 8, color: T.textTertiary, lineHeight: 1 }}>{card.sublabel}</span>
-                    </motion.div>
-                  )}
+                />
+                <FlowChip
+                  flow={flow}
+                  onSelect={(presetId) => onFlowPresetSelect(presetId)}
+                  onLongPress={() => {
+                    haptic([8, 50, 8]);
+                    onClose();
+                    setTimeout(() => onOpenL2?.("flow"), 80);
+                  }}
                 />
               </div>
-
-              {/* Space chip */}
-              <motion.div
-                onTouchStart={spaceDown}
-                onTouchEnd={() => spaceUp(true)}
-                onTouchMove={() => { clearTimeout(spaceTimerRef.current); setSpaceLPActive(false); }}
-                onMouseDown={spaceDown}
-                onMouseUp={() => spaceUp(true)}
-                onMouseLeave={() => { clearTimeout(spaceTimerRef.current); setSpaceLPActive(false); }}
-                onClick={e => e.preventDefault()}
-                whileTap={{ scale: 0.96 }}
-                style={chipBase(space.enabled, spaceLPActive)}
-              >
-                <ControlIcon icon="space" size={20} color={space.enabled ? (T.accent ?? "#E8A23C") : (T.textSecondary ?? "rgba(255,255,255,0.55)")} />
-                <span style={{ fontSize: 8, color: space.enabled ? (T.accent ?? "#E8A23C") : T.textTertiary, letterSpacing: 1, textTransform: "uppercase", fontWeight: 600 }}>SPACE</span>
-                <span style={{ fontSize: 11, fontWeight: 600, color: space.enabled ? (T.accent ?? "#E8A23C") : T.textPrimary }}>{spaceMeta.label}</span>
-                <span style={{ fontSize: 9, color: T.textTertiary }}>hold: edit</span>
-              </motion.div>
-
-              {/* Flow chip */}
-              <motion.div
-                onTouchStart={flowDown}
-                onTouchEnd={() => flowUp(true)}
-                onTouchMove={() => { clearTimeout(flowTimerRef.current); setFlowLPActive(false); }}
-                onMouseDown={flowDown}
-                onMouseUp={() => flowUp(true)}
-                onMouseLeave={() => { clearTimeout(flowTimerRef.current); setFlowLPActive(false); }}
-                onClick={e => e.preventDefault()}
-                whileTap={{ scale: 0.96 }}
-                style={chipBase(flow.enabled, flowLPActive)}
-              >
-                <ControlIcon icon="flow" size={20} color={flow.enabled ? (T.accent ?? "#E8A23C") : (T.textSecondary ?? "rgba(255,255,255,0.55)")} />
-                <span style={{ fontSize: 8, color: flow.enabled ? (T.accent ?? "#E8A23C") : T.textTertiary, letterSpacing: 1, textTransform: "uppercase", fontWeight: 600 }}>FLOW</span>
-                <span style={{ fontSize: 11, fontWeight: 600, color: flow.enabled ? (T.accent ?? "#E8A23C") : T.textPrimary }}>{flowMeta.label}</span>
-                <span style={{ fontSize: 9, color: T.textTertiary }}>hold: edit</span>
-              </motion.div>
             </div>
 
             <div style={{
               textAlign: "center", fontSize: 9, color: T.textTertiary,
-              marginTop: 8, opacity: 0.45, fontFamily: FONT_TEXT, letterSpacing: 0.3,
+              marginBottom: 0, opacity: 0.4, fontFamily: FONT_TEXT, letterSpacing: 0.3,
+              flexShrink: 0,
             }}>
-              swipe down to close · hold Space/Flow to edit
+              swipe down to close · hold Space/Flow for more
             </div>
           </motion.div>
         </>
@@ -805,9 +926,6 @@ function ControlCenter({
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// IntervalsEditor — L2 interval selection
-// ─────────────────────────────────────────────────────────────
 function IntervalsEditor({ open, onClose, selectedIntervals, setSelectedIntervals, intervalPreset, setIntervalPreset }) {
   const T = useT();
   const selectedLabels = selectedIntervals.map(i => INTERVAL_LABELS[i]);
@@ -1139,15 +1257,287 @@ function FlowEditor({ open, onClose, flow, setFlow, onApply }) {
 // ─────────────────────────────────────────────────────────────
 // MAIN COMPONENT — IntervalTrainer v4.0
 // ─────────────────────────────────────────────────────────────
-export function IntervalTrainer({ settings, audioEnabled, setAudioEnabled }) {
+
+// ─────────────────────────────────────────────────────────────
+// QuickAdjustLayer — L2: iOS 控制中心式快调面板
+// 从 L1 SpaceChip/FlowChip 长按进入，向下拖动关闭
+// 底部"更多设置"→ 进 L3 完整编辑器
+// ─────────────────────────────────────────────────────────────
+function QuickAdjustLayer({
+  open, onClose, module,
+  selectedIntervals, setSelectedIntervals,
+  intervalPreset, setIntervalPreset,
+  space, setSpace,
+  flow, setFlow,
+  onApply, onOpenSettings,
+}) {
+  const T = useT();
+  const startYRef = useRef(null);
+  const [dragY, setDragY] = useState(0);
+
+  function handleTouchStart(e) { startYRef.current = e.touches[0].clientY; }
+  function handleTouchMove(e) {
+    const dy = e.touches[0].clientY - startYRef.current;
+    if (dy > 0) setDragY(dy);
+  }
+  function handleTouchEnd() {
+    if (dragY > 80) onClose();
+    setDragY(0);
+    startYRef.current = null;
+  }
+  function handleMouseDown(e) { startYRef.current = e.clientY; }
+  function handleMouseMove(e) {
+    if (e.buttons !== 1 || !startYRef.current) return;
+    const dy = e.clientY - startYRef.current;
+    if (dy > 0) setDragY(dy);
+  }
+  function handleMouseUp() {
+    if (dragY > 80) onClose();
+    setDragY(0);
+    startYRef.current = null;
+  }
+
+  const moduleTitle = module === "intervals" ? "Intervals"
+    : module === "space" ? "Space"
+    : "Flow";
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          key="l2-quickadjust"
+          initial={{ opacity: 0, scale: 0.92, y: 40 }}
+          animate={{ opacity: 1, scale: 1, y: dragY }}
+          exit={{ opacity: 0, scale: 0.95, y: 60 }}
+          transition={SPRINGS.panelExpand ?? SPRINGS.sheetPresent}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          style={{
+            position: "fixed", inset: 0, zIndex: 200,
+            background: "rgba(18,18,20,0.96)",
+            backdropFilter: "blur(32px)",
+            WebkitBackdropFilter: "blur(32px)",
+            display: "flex", flexDirection: "column",
+            paddingTop: "env(safe-area-inset-top, 44px)",
+            paddingBottom: "env(safe-area-inset-bottom, 0px)",
+          }}
+        >
+          {/* 顶部拖拽条 + 标题 */}
+          <div style={{
+            display: "flex", flexDirection: "column",
+            alignItems: "center", padding: "12px 16px 8px", flexShrink: 0,
+          }}>
+            <div style={{
+              width: 36, height: 4, borderRadius: 2,
+              background: "rgba(255,255,255,0.2)", marginBottom: 12,
+            }} />
+            <div style={{
+              fontSize: 11, color: T.textTertiary,
+              letterSpacing: 1.5, textTransform: "uppercase",
+            }}>
+              {moduleTitle}
+            </div>
+          </div>
+
+          {/* 内容区 — 简化版内联编辑器 */}
+          <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "0 16px" }}>
+            {module === "intervals" && (
+              <IntervalsEditorContent
+                selectedIntervals={selectedIntervals}
+                setSelectedIntervals={setSelectedIntervals}
+                intervalPreset={intervalPreset}
+                setIntervalPreset={setIntervalPreset}
+              />
+            )}
+            {module === "space" && (
+              <SpaceEditorContent
+                space={space}
+                setSpace={setSpace}
+                onApply={onApply}
+                onClose={onClose}
+              />
+            )}
+            {module === "flow" && (
+              <FlowEditorContent
+                flow={flow}
+                setFlow={setFlow}
+                onApply={onApply}
+                onClose={onClose}
+              />
+            )}
+          </div>
+
+          {/* 底部"更多设置"按钮 */}
+          <div style={{ padding: "12px 16px", flexShrink: 0 }}>
+            <button onClick={onOpenSettings} style={{
+              width: "100%", padding: "13px",
+              borderRadius: 12, border: `0.5px solid ${T.border ?? "rgba(255,255,255,0.1)"}`,
+              background: T.surface2 ?? "rgba(255,255,255,0.06)",
+              color: T.textSecondary ?? "rgba(255,255,255,0.55)",
+              fontSize: 13, cursor: "pointer", fontFamily: FONT_TEXT,
+            }}>
+              更多设置 →
+            </button>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// 内联编辑器内容组件（供 QuickAdjustLayer 使用）
+// ─────────────────────────────────────────────────────────────
+function IntervalsEditorContent({ selectedIntervals, setSelectedIntervals, intervalPreset, setIntervalPreset }) {
+  const T = useT();
+  const allIntervals = INTERVAL_LABELS.slice(1).map((label, idx) => ({ iv: idx + 1, label }));
+  return (
+    <div style={{ paddingTop: 16, paddingBottom: 20 }}>
+      <div style={{ fontSize: 10, color: T.textTertiary, letterSpacing: 1, textTransform: "uppercase", marginBottom: 12 }}>
+        Tap to toggle
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+        {allIntervals.map(({ iv, label }) => {
+          const active = selectedIntervals.includes(iv);
+          return (
+            <motion.button key={iv} whileTap={{ scale: 0.9 }}
+              onClick={() => {
+                setIntervalPreset("custom");
+                setSelectedIntervals(prev => {
+                  if (prev.includes(iv)) return prev.length === 1 ? prev : prev.filter(x => x !== iv);
+                  return [...prev, iv].sort((a, b) => a - b);
+                });
+              }}
+              style={{
+                width: 52, height: 52, borderRadius: 12,
+                border: `1px solid ${active ? (T.accentBorder ?? "rgba(232,162,60,0.35)") : (T.border ?? "rgba(255,255,255,0.1)")}`,
+                background: active ? (T.accentSub ?? "rgba(232,162,60,0.1)") : (T.surface2 ?? "rgba(255,255,255,0.06)"),
+                color: active ? (T.accent ?? "#E8A23C") : T.textSecondary,
+                fontSize: 12, fontFamily: FONT_MONO, cursor: "pointer",
+                fontWeight: active ? 700 : 400,
+              }}>
+              {label}
+            </motion.button>
+          );
+        })}
+      </div>
+      <div style={{ fontSize: 10, color: T.textTertiary, marginBottom: 8 }}>
+        {selectedIntervals.length} selected · {selectedIntervals.map(iv => INTERVAL_LABELS[iv]).join(", ")}
+      </div>
+    </div>
+  );
+}
+
+function SpaceEditorContent({ space, setSpace, onApply, onClose }) {
+  const T = useT();
+  const [draft, setDraft] = useState(space);
+  function apply() {
+    setSpace({ ...draft, enabled: true, preset: "custom" });
+    onApply?.();
+    onClose?.();
+  }
+  return (
+    <div style={{ paddingTop: 16, paddingBottom: 20 }}>
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ fontSize: 10, color: T.textTertiary, letterSpacing: 1, textTransform: "uppercase", marginBottom: 10 }}>Presets</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {SPACE_PRESETS.map(p => (
+            <button key={p.id}
+              onClick={() => setDraft(d => ({ ...d, fretRange: p.fretRange, strings: p.strings, preset: p.id }))}
+              style={{
+                padding: "8px 12px", borderRadius: 12, fontSize: 12,
+                background: draft.preset === p.id ? (T.accentSub ?? "rgba(232,162,60,0.1)") : (T.surface2 ?? "rgba(255,255,255,0.06)"),
+                border: `0.5px solid ${draft.preset === p.id ? (T.accentBorder ?? "rgba(232,162,60,0.35)") : (T.border ?? "rgba(255,255,255,0.1)")}`,
+                color: draft.preset === p.id ? (T.accent ?? "#E8A23C") : T.textSecondary,
+                cursor: "pointer", fontFamily: FONT_TEXT,
+              }}>
+              <div style={{ fontWeight: 600 }}>{p.label}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ fontSize: 10, color: T.textTertiary, letterSpacing: 1, textTransform: "uppercase", marginBottom: 4 }}>Fret Range</div>
+        <FretRangeSlider
+          value={{ start: draft.fretRange.min, end: draft.fretRange.max }}
+          onChange={v => setDraft(d => ({ ...d, fretRange: { min: v.start, max: v.end } }))}
+        />
+      </div>
+      <button onClick={apply} style={{
+        width: "100%", padding: "13px", borderRadius: 14, fontSize: 14, fontWeight: 700,
+        background: T.accentSub ?? "rgba(232,162,60,0.1)",
+        border: `0.5px solid ${T.accentBorder ?? "rgba(232,162,60,0.35)"}`,
+        color: T.accent ?? "#E8A23C", cursor: "pointer", fontFamily: FONT_TEXT,
+      }}>Apply Zone</button>
+    </div>
+  );
+}
+
+function FlowEditorContent({ flow, setFlow, onApply, onClose }) {
+  const T = useT();
+  const orderOptions = [
+    { id: "low-high", label: "Low → High" },
+    { id: "high-low", label: "High → Low" },
+    { id: "random",   label: "Random" },
+  ];
+  function selectOrder(id) {
+    const preset = FLOW_PRESETS.find(p => p.id === id) ?? FLOW_PRESETS[0];
+    setFlow(prev => ({ ...prev, order: preset.order ?? id, preset: id, enabled: true, stringIdx: 0 }));
+    onApply?.();
+    onClose?.();
+  }
+  return (
+    <div style={{ paddingTop: 16, paddingBottom: 20 }}>
+      <div style={{ fontSize: 10, color: T.textTertiary, letterSpacing: 1, textTransform: "uppercase", marginBottom: 12 }}>Order</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {orderOptions.map(opt => {
+          const isActive = flow.preset === opt.id || flow.order === opt.id;
+          return (
+            <motion.div key={opt.id} whileTap={{ scale: 0.98 }}
+              onClick={() => selectOrder(opt.id)}
+              style={{
+                height: 48, display: "flex", alignItems: "center",
+                gap: 14, padding: "0 14px", borderRadius: 12, cursor: "pointer",
+                background: isActive ? (T.accentSub ?? "rgba(232,162,60,0.08)") : (T.surface2 ?? "rgba(255,255,255,0.06)"),
+                border: `0.5px solid ${isActive ? (T.accentBorder ?? "rgba(232,162,60,0.35)") : (T.border ?? "rgba(255,255,255,0.1)")}`,
+              }}>
+              <div style={{
+                width: 20, height: 20, borderRadius: 10,
+                background: isActive ? (T.accent ?? "#E8A23C") : "transparent",
+                border: `1.5px solid ${isActive ? (T.accent ?? "#E8A23C") : "rgba(255,255,255,0.25)"}`,
+                flexShrink: 0,
+              }} />
+              <span style={{ fontSize: 14, fontWeight: isActive ? 700 : 400, color: isActive ? (T.accent ?? "#E8A23C") : T.textPrimary, fontFamily: FONT_TEXT }}>
+                {opt.label}
+              </span>
+            </motion.div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// MAIN COMPONENT — IntervalTrainer v5.0
+// ─────────────────────────────────────────────────────────────
+export function IntervalTrainer({ settings, audioEnabled, setAudioEnabled, onCCChange }) {
   const T        = useT();
+  const isDark   = useContext(ThemeContext)?.dark ?? true;
   const tuning   = settings.tuning;
   const calibCtx = useContext(CalibContext);
   const toast    = useToast();
+  const bp       = useBreakpoint();
+  const isTablet = bp === "tablet";
+  const isPC     = bp === "pc";
 
   // ── STATE ──────────────────────────────────────────────────
 
-  const [findMode,    setFindMode]    = useState("interval"); // "interval" | "root"
+  const [findMode,    setFindMode]    = useState("interval");
   const [contentMode, setContentMode] = useState("learning");
   const [zenMode,     setZenMode]     = useState(false);
 
@@ -1179,20 +1569,31 @@ export function IntervalTrainer({ settings, audioEnabled, setAudioEnabled }) {
   const [showFlowEditor,  setShowFlowEditor]  = useState(false);
   const [showStats,       setShowStats]       = useState(false);
 
-  const anyLayerOpen = showCC || showIVEditor || showSpaceEditor || showFlowEditor;
+  // L2 QuickAdjustLayer
+  const [showQuickAdjust, setShowQuickAdjust] = useState(false);
+  const [l2Module,        setL2Module]        = useState("intervals");
+
+  function openL2(module) {
+    setL2Module(module);
+    setShowQuickAdjust(true);
+  }
+
+  const anyLayerOpen = showCC || showIVEditor || showSpaceEditor || showFlowEditor || showQuickAdjust;
 
   // ── BODY SCROLL LOCK ───────────────────────────────────────
-  // TabBar 始终可见（通过 App.jsx paddingBottom 留出空间）
-  // 不再需要 onCCChange 通知 App 隐藏 TabBar
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
+    return () => { document.body.style.overflow = prev; };
   }, []); // eslint-disable-line
 
-  // ── DERIVED MODE FLAGS (audio logic compat) ────────────────
+  // ── onCCChange 通知 App ────────────────────────────────────
+  useEffect(() => {
+    onCCChange?.(true);
+    return () => { onCCChange?.(false); };
+  }, []); // eslint-disable-line
+
+  // ── DERIVED MODE FLAGS ─────────────────────────────────────
   const revealMode    = contentMode === "blind" ? "blind" : "learning";
   const rootFirst     = contentMode === "rootFirst";
   const coreDrillMode = contentMode === "coreDrill";
@@ -1219,17 +1620,15 @@ export function IntervalTrainer({ settings, audioEnabled, setAudioEnabled }) {
     }
   }
 
-  function cycleFlowPreset() {
-    const idx    = FLOW_CYCLE.indexOf(flow.preset);
-    const nextId = FLOW_CYCLE[(idx + 1) % FLOW_CYCLE.length];
-    const preset = FLOW_PRESETS.find(p => p.id === nextId);
+  function handleFlowPresetSelect(presetId) {
+    const preset = FLOW_PRESETS.find(p => p.id === presetId);
     if (preset) {
-      setFlow(prev => ({ ...prev, preset: nextId, enabled: preset.enabled, order: preset.order, stringIdx: 0 }));
+      setFlow(prev => ({ ...prev, preset: presetId, enabled: preset.enabled, order: preset.order ?? prev.order, stringIdx: 0 }));
       setTimeout(genQ, 0);
     }
   }
 
-  // ── genQ — unchanged logic from v3.1 ───────────────────────
+  // ── genQ — unchanged logic ─────────────────────────────────
   const genQ = useCallback(() => {
     if (!selectedIntervals.length) return;
     const iv       = selectedIntervals[Math.floor(Math.random() * selectedIntervals.length)];
@@ -1284,7 +1683,12 @@ export function IntervalTrainer({ settings, audioEnabled, setAudioEnabled }) {
 
   useEffect(() => { genQ(); }, []); // eslint-disable-line
 
-  // ── PITCH DETECTION — preserved 100% from v3.1 ─────────────
+  // ── viewportCenter — 动态5品视口中心 ─────────────────────
+  const viewportCenter = question
+    ? Math.round((question.rootFret + question.targetFret) / 2)
+    : null;
+
+  // ── PITCH DETECTION — preserved 100% ──────────────────────
   const onPitchDetected = useCallback(freq => {
     if (status !== "listening" || !question) return;
     const midi = freqToMidi(freq, calibCtx.pitchOffset);
@@ -1408,290 +1812,153 @@ export function IntervalTrainer({ settings, audioEnabled, setAudioEnabled }) {
   // ── FRETBOARD SWIPE-UP handler ref ─────────────────────────
   const fbStartYRef = useRef(null);
 
+  // ────────────────────────────────────────────────────────────
   // ── RENDER ─────────────────────────────────────────────────
-  return (
-    <>
-      {/* ══════════════ L0 — FIXED STAGE ══════════════ */}
-      <motion.div
-        animate={anyLayerOpen
-          ? { scale: 0.965, opacity: 0.85, filter: "blur(6px)" }
-          : { scale: 1,     opacity: 1,    filter: "blur(0px)" }
-        }
-        transition={SPRINGS.sheetPresent}
-        style={{
-          // 不再用 position:fixed — App.jsx 已为 trainer 内容区设置正确高度
-          // 此容器在普通文档流中填满父级空间，TabBar 始终可见
-          flex: 1,
-          minHeight: 0,
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-          background: T.surface0,   // 背景填满，遮住 MeshBackground（修复透明漏光 bug）
-          userSelect: "none",
-          WebkitUserSelect: "none",
-          WebkitTouchCallout: "none",
-          touchAction: "none",
-          pointerEvents: anyLayerOpen ? "none" : "auto",
-        }}
-        onContextMenu={e => e.preventDefault()}
-        {...longPress}
-      >
-        {/* ── TRAINER HEADER — 48px ─────────────────────
-            左：训练名称 + 当前模式
-            右：MIC 按钮 + 信号条 + Streak + 准确率
-            App header 在 trainer 页面已隐藏，所以这里承担标题功能
-        ─────────────────────────────────────────────── */}
-        <div style={{
-          height: 48,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          paddingLeft: 16, paddingRight: 16,
-          flexShrink: 0,
-        }}>
-          {/* 左：标题 */}
-          <div>
-            <div style={{
-              fontSize: 17, fontWeight: 700, lineHeight: 1,
-              color: T.textPrimary, fontFamily: FONT_DISPLAY,
-              letterSpacing: -0.3,
-            }}>
-              Intervals
-            </div>
-            <div style={{
-              fontSize: 10, color: T.textTertiary, marginTop: 2,
-              fontFamily: FONT_TEXT, letterSpacing: 0.2,
-            }}>
-              {{
-                learning:  "Visual mode",
-                blind:     "Blind mode",
-                rootFirst: "Root first",
-                coreDrill: "Core drill",
-              }[contentMode] ?? contentMode}
-            </div>
-          </div>
+  // ────────────────────────────────────────────────────────────
 
-          {/* 右：MIC + 信号 + Streak + 准确率 */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {/* Mic toggle */}
-            <motion.button
-              onClick={() => setAudioEnabled?.(v => !v)}
-              whileTap={{ scale: 0.88 }}
-              transition={SPRINGS.tap}
-              style={{
-                height: 30, padding: "0 10px", borderRadius: 15,
-                fontSize: 10, fontWeight: 600, fontFamily: FONT_TEXT,
-                cursor: "pointer",
-                border: `0.5px solid ${audioEnabled ? "rgba(52,199,89,0.45)" : (T.border ?? "rgba(255,255,255,0.1)")}`,
-                background: audioEnabled ? "rgba(52,199,89,0.12)" : (T.surface2 ?? "rgba(255,255,255,0.06)"),
-                color: audioEnabled ? "#34C759" : (T.textTertiary ?? "rgba(255,255,255,0.35)"),
-                display: "flex", alignItems: "center", gap: 5,
-              }}
-            >
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                <line x1="12" y1="19" x2="12" y2="23"/>
-                <line x1="8"  y1="23" x2="16" y2="23"/>
-              </svg>
-              {audioEnabled ? "ON" : "OFF"}
-            </motion.button>
-
-            <SignalBar rms={rms} enabled={audioEnabled} />
-
-            <AnimatePresence>
-              {streak > 0 && (
-                <motion.div
-                  key="streak"
-                  initial={{ scale: 0.5, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0.5, opacity: 0 }}
-                  transition={SPRINGS.correct}
-                  style={{
-                    padding: "3px 8px", borderRadius: 10, fontSize: 11, fontWeight: 700,
-                    background: "rgba(232,162,60,0.14)",
-                    color: T.accent ?? "#E8A23C",
-                    border: `0.5px solid ${T.accentBorder ?? "rgba(232,162,60,0.35)"}`,
-                    display: "flex", alignItems: "center", gap: 3,
-                    fontFamily: FONT_MONO,
-                  }}
-                >
-                  <svg width="10" height="12" viewBox="0 0 10 12" fill="currentColor">
-                    <path d="M5 0C5 0 8 3 8 5.5C8 7.5 6.8 9 5 9C3.2 9 2 7.5 2 5.5C2 3 5 0 5 0Z" opacity="0.9"/>
-                    <path d="M5 6C5 6 6.5 7 6.5 8C6.5 9 5.8 10 5 10C4.2 10 3.5 9 3.5 8C3.5 7 5 6 5 6Z" opacity="0.55"/>
-                  </svg>
-                  {streak}
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {score.total > 0 && (
-              <div style={{ fontSize: 11, color: T.textTertiary, fontFamily: FONT_MONO }}>
-                {Math.round((score.correct / score.total) * 100)}%
-              </div>
-            )}
-          </div>
+  // ── 公共内容块（手机/平板/PC 共用）──────────────────────────
+  const TopBar = (
+    <div style={{
+      height: 48,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingLeft: 16, paddingRight: 16,
+      flexShrink: 0,
+    }}>
+      <div>
+        <div style={{ fontSize: 17, fontWeight: 700, lineHeight: 1, color: T.textPrimary, fontFamily: FONT_DISPLAY, letterSpacing: -0.3 }}>
+          Intervals
         </div>
-
-        {/* ── FIND MODE CAPSULES — 40px (NEW) ───────── */}
-        <FindModeCapsules findMode={findMode} onSelect={setFindMode} />
-
-        {/* ── FOCUS CARD — 172px LOCKED ─────────────── */}
-        <div style={{ paddingLeft: 12, paddingRight: 12, flexShrink: 0 }}>
-          <GlassCard style={{
-            height: 172,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "12px 20px",
-            textAlign: "center",
-            position: "relative",
-            overflow: "hidden",
-          }}>
-            <motion.div
-              key={(question?.intervalIdx ?? "none") + "-" + (question?.rootStr ?? "x") + "-" + findMode + "-" + stage}
-              initial={{ scale: 0.85, opacity: 0, filter: "blur(6px)" }}
-              animate={{ scale: 1,    opacity: 1, filter: "blur(0px)" }}
-              transition={SPRINGS.cardAppear}
-            >
-              <FocusCardContent
-                findMode={findMode}
-                contentMode={contentMode}
-                stage={stage}
-                rootNote={rootNote}
-                ivName={ivName}
-              />
-            </motion.div>
-
-            {/* Correct flash ring */}
-            <AnimatePresence>
-              {status === "correct" && (
-                <motion.div
-                  key="correct-ring"
-                  initial={{ scale: 0.9, opacity: 0.6 }}
-                  animate={{ scale: 1.8, opacity: 0 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.5, ease: "easeOut" }}
-                  style={{
-                    position: "absolute", inset: 0, borderRadius: 20,
-                    border: `1.5px solid ${T.accent ?? "#E8A23C"}`,
-                    pointerEvents: "none",
-                  }}
-                />
-              )}
-            </AnimatePresence>
-          </GlassCard>
+        <div style={{ fontSize: 10, color: T.textTertiary, marginTop: 2, fontFamily: FONT_TEXT, letterSpacing: 0.2 }}>
+          {{ learning: "Visual mode", blind: "Blind mode", rootFirst: "Root first", coreDrill: "Core drill" }[contentMode] ?? contentMode}
         </div>
-
-        {/* ── VOCALIZATION PROMPT ───────────────────── */}
-        <AnimatePresence>
-          {vocPrompt && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={SPRINGS.feather}
-              style={{ overflow: "hidden", paddingLeft: 12, paddingRight: 12, paddingTop: 6, flexShrink: 0 }}
-            >
-              <VocalizationPrompt
-                interval={vocPrompt.interval}
-                shapeType={vocPrompt.shapeType}
-                onDismiss={() => setVocPrompt(null)}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* ── CORE DRILL NEXT ───────────────────────── */}
-        <AnimatePresence>
-          {stage === "showingShapes" && !vocPrompt && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              style={{ overflow: "hidden", paddingLeft: 12, paddingRight: 12, paddingTop: 6, flexShrink: 0 }}
-            >
-              <motion.button
-                whileTap={{ scale: 0.97 }}
-                onClick={() => { setStage("interval"); genQ(); }}
-                style={{
-                  width: "100%", padding: "10px 20px", borderRadius: 12,
-                  border: `0.5px solid ${T.border ?? "rgba(255,255,255,0.1)"}`,
-                  background: T.surface2 ?? "rgba(255,255,255,0.06)",
-                  color: T.accent ?? "#E8A23C",
-                  fontSize: 13, fontWeight: 600,
-                  cursor: "pointer", fontFamily: FONT_TEXT,
-                }}
-              >
-                Next →
-              </motion.button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* ── FRETBOARD — flex:1, swipe-up opens L1 ─── */}
-        <div
-          style={{ flex: 1, minHeight: 0, paddingTop: 8, display: "flex", flexDirection: "column" }}
-          onTouchStart={e => { fbStartYRef.current = e.touches[0].clientY; }}
-          onTouchEnd={e => {
-            if (fbStartYRef.current !== null) {
-              const dy = fbStartYRef.current - e.changedTouches[0].clientY;
-              if (dy > 40 && !anyLayerOpen) setShowCC(true);
-              fbStartYRef.current = null;
-            }
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <motion.button
+          onClick={() => setAudioEnabled?.(v => !v)}
+          whileTap={{ scale: 0.88 }}
+          transition={SPRINGS.tap}
+          style={{
+            height: 30, padding: "0 10px", borderRadius: 15,
+            fontSize: 10, fontWeight: 600, fontFamily: FONT_TEXT, cursor: "pointer",
+            border: `0.5px solid ${audioEnabled ? "rgba(52,199,89,0.45)" : (T.border ?? "rgba(255,255,255,0.1)")}`,
+            background: audioEnabled ? "rgba(52,199,89,0.12)" : (T.surface2 ?? "rgba(255,255,255,0.06)"),
+            color: audioEnabled ? "#34C759" : (T.textTertiary ?? "rgba(255,255,255,0.35)"),
+            display: "flex", alignItems: "center", gap: 5,
           }}
         >
-          {!fbHidden ? (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.2 }}
-              style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}
-            >
-              <FretboardSurface
-                settings={settings}
-                highlights={highlights}
-                tuning={tuning}
-                arcPair={arcPair}
-                swipeHandlers={swipe}
-                containerStyle={{
-                  flex: 1, minHeight: 0,
-                  display: "flex", flexDirection: "column", justifyContent: "center",
-                }}
-              />
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+            <line x1="12" y1="19" x2="12" y2="23"/>
+            <line x1="8"  y1="23" x2="16" y2="23"/>
+          </svg>
+          {audioEnabled ? "ON" : "OFF"}
+        </motion.button>
+        <SignalBar rms={rms} enabled={audioEnabled} />
+        <AnimatePresence>
+          {streak > 0 && (
+            <motion.div key="streak"
+              initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }}
+              transition={SPRINGS.correct}
+              style={{ padding: "3px 8px", borderRadius: 10, fontSize: 11, fontWeight: 700, background: "rgba(232,162,60,0.14)", color: T.accent ?? "#E8A23C", border: `0.5px solid ${T.accentBorder ?? "rgba(232,162,60,0.35)"}`, display: "flex", alignItems: "center", gap: 3, fontFamily: FONT_MONO }}>
+              <svg width="10" height="12" viewBox="0 0 10 12" fill="currentColor">
+                <path d="M5 0C5 0 8 3 8 5.5C8 7.5 6.8 9 5 9C3.2 9 2 7.5 2 5.5C2 3 5 0 5 0Z" opacity="0.9"/>
+                <path d="M5 6C5 6 6.5 7 6.5 8C6.5 9 5.8 10 5 10C4.2 10 3.5 9 3.5 8C3.5 7 5 6 5 6Z" opacity="0.55"/>
+              </svg>
+              {streak}
             </motion.div>
-          ) : (
-            <motion.button
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              onClick={() => setZenMode(false)}
-              style={{
-                flex: 1, margin: "0 12px", borderRadius: 18,
-                border: `0.5px dashed ${T.border ?? "rgba(255,255,255,0.1)"}`,
-                background: "transparent",
-                color: T.textTertiary ?? "rgba(255,255,255,0.35)",
-                fontSize: 13, cursor: "pointer", fontFamily: FONT_TEXT,
-              }}
-            >
-              Tap to show fretboard
-            </motion.button>
           )}
-        </div>
+        </AnimatePresence>
+        {score.total > 0 && (
+          <div style={{ fontSize: 11, color: T.textTertiary, fontFamily: FONT_MONO }}>
+            {Math.round((score.correct / score.total) * 100)}%
+          </div>
+        )}
+      </div>
+    </div>
+  );
 
-        {/* ── BOTTOM BAR — Handle + 4 chips ─────────── */}
-        <BottomBar
-          content={{ mode: contentMode, intervalPreset }}
-          space={space}
-          flow={flow}
-          onOpen={() => setShowCC(true)}
-          isOpen={showCC}
-        />
-      </motion.div>
-      {/* ══════════════ L0 END ═══════════════════════ */}
+  const FocusArea = (
+    <>
+      <FindModeCapsules findMode={findMode} onSelect={setFindMode} />
+      <div style={{ paddingLeft: 12, paddingRight: 12, flexShrink: 0 }}>
+        <GlassCard style={{ height: 172, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "12px 20px", textAlign: "center", position: "relative", overflow: "hidden" }}>
+          <motion.div
+            key={(question?.intervalIdx ?? "none") + "-" + (question?.rootStr ?? "x") + "-" + findMode + "-" + stage}
+            initial={{ scale: 0.85, opacity: 0, filter: "blur(6px)" }}
+            animate={{ scale: 1, opacity: 1, filter: "blur(0px)" }}
+            transition={SPRINGS.cardAppear}
+          >
+            <FocusCardContent findMode={findMode} contentMode={contentMode} stage={stage} rootNote={rootNote} ivName={ivName} />
+          </motion.div>
+          <AnimatePresence>
+            {status === "correct" && (
+              <motion.div key="correct-ring"
+                initial={{ scale: 0.9, opacity: 0.6 }} animate={{ scale: 1.8, opacity: 0 }} exit={{ opacity: 0 }}
+                transition={{ duration: 0.5, ease: "easeOut" }}
+                style={{ position: "absolute", inset: 0, borderRadius: 20, border: `1.5px solid ${T.accent ?? "#E8A23C"}`, pointerEvents: "none" }} />
+            )}
+          </AnimatePresence>
+        </GlassCard>
+      </div>
+      <AnimatePresence>
+        {vocPrompt && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={SPRINGS.feather} style={{ overflow: "hidden", paddingLeft: 12, paddingRight: 12, paddingTop: 6, flexShrink: 0 }}>
+            <VocalizationPrompt interval={vocPrompt.interval} shapeType={vocPrompt.shapeType} onDismiss={() => setVocPrompt(null)} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {stage === "showingShapes" && !vocPrompt && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} style={{ overflow: "hidden", paddingLeft: 12, paddingRight: 12, paddingTop: 6, flexShrink: 0 }}>
+            <motion.button whileTap={{ scale: 0.97 }} onClick={() => { setStage("interval"); genQ(); }}
+              style={{ width: "100%", padding: "10px 20px", borderRadius: 12, border: `0.5px solid ${T.border ?? "rgba(255,255,255,0.1)"}`, background: T.surface2 ?? "rgba(255,255,255,0.06)", color: T.accent ?? "#E8A23C", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_TEXT }}>
+              Next →
+            </motion.button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
+  );
 
-      {/* ── L1: Control Center ─────────────────────── */}
+  const FretboardArea = (
+    <div style={{ flex: 1, minHeight: 0, paddingTop: 8, display: "flex", flexDirection: "column" }}
+      onTouchStart={e => { fbStartYRef.current = e.touches[0].clientY; }}
+      onTouchEnd={e => {
+        if (fbStartYRef.current !== null) {
+          const dy = fbStartYRef.current - e.changedTouches[0].clientY;
+          if (dy > 40 && !anyLayerOpen) setShowCC(true);
+          fbStartYRef.current = null;
+        }
+      }}
+    >
+      {!fbHidden ? (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}
+          style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+          <FretboardSurface
+            settings={settings}
+            highlights={highlights}
+            tuning={tuning}
+            arcPair={arcPair}
+            swipeHandlers={swipe}
+            viewportCenter={viewportCenter}
+            containerStyle={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", justifyContent: "center" }}
+          />
+        </motion.div>
+      ) : (
+        <motion.button initial={{ opacity: 0 }} animate={{ opacity: 1 }} onClick={() => setZenMode(false)}
+          style={{ flex: 1, margin: "0 12px", borderRadius: 18, border: `0.5px dashed ${T.border ?? "rgba(255,255,255,0.1)"}`, background: "transparent", color: T.textTertiary ?? "rgba(255,255,255,0.35)", fontSize: 13, cursor: "pointer", fontFamily: FONT_TEXT }}>
+          Tap to show fretboard
+        </motion.button>
+      )}
+    </div>
+  );
+
+  // ── L1 + L2 + L3 layers（共用）────────────────────────────
+  const Layers = (
+    <>
       <ControlCenter
         open={showCC}
         onClose={() => setShowCC(false)}
@@ -1705,13 +1972,30 @@ export function IntervalTrainer({ settings, audioEnabled, setAudioEnabled }) {
         space={space}
         onCycleSpacePreset={cycleSpacePreset}
         flow={flow}
-        onCycleFlowPreset={cycleFlowPreset}
+        onFlowPresetSelect={handleFlowPresetSelect}
         onEditIntervals={() => setShowIVEditor(true)}
-        onEditSpace={() => setShowSpaceEditor(true)}
-        onEditFlow={() => setShowFlowEditor(true)}
+        onOpenL2={openL2}
       />
 
-      {/* ── L2: Interval Editor ────────────────────── */}
+      <QuickAdjustLayer
+        open={showQuickAdjust}
+        onClose={() => setShowQuickAdjust(false)}
+        module={l2Module}
+        selectedIntervals={selectedIntervals}
+        setSelectedIntervals={setSelectedIntervals}
+        intervalPreset={intervalPreset}
+        setIntervalPreset={setIntervalPreset}
+        space={space} setSpace={setSpace}
+        flow={flow}   setFlow={setFlow}
+        onApply={() => setTimeout(genQ, 0)}
+        onOpenSettings={() => {
+          setShowQuickAdjust(false);
+          if (l2Module === "intervals") setShowIVEditor(true);
+          else if (l2Module === "space") setShowSpaceEditor(true);
+          else if (l2Module === "flow")  setShowFlowEditor(true);
+        }}
+      />
+
       <IntervalsEditor
         open={showIVEditor}
         onClose={() => setShowIVEditor(false)}
@@ -1720,31 +2004,187 @@ export function IntervalTrainer({ settings, audioEnabled, setAudioEnabled }) {
         intervalPreset={intervalPreset}
         setIntervalPreset={setIntervalPreset}
       />
-
-      {/* ── L2: Space Editor ───────────────────────── */}
       <SpaceEditor
         open={showSpaceEditor}
         onClose={() => setShowSpaceEditor(false)}
-        space={space}
-        setSpace={setSpace}
+        space={space} setSpace={setSpace}
         onApply={() => setTimeout(genQ, 0)}
       />
-
-      {/* ── L2: Flow Editor ────────────────────────── */}
       <FlowEditor
         open={showFlowEditor}
         onClose={() => setShowFlowEditor(false)}
-        flow={flow}
-        setFlow={setFlow}
+        flow={flow} setFlow={setFlow}
         onApply={() => setTimeout(genQ, 0)}
       />
-
-      {/* Stats sheet */}
       <StatsSheet
         open={showStats}
         onClose={() => setShowStats(false)}
         statsRef={statsRef}
       />
+    </>
+  );
+
+  // ── PC 布局（三栏）────────────────────────────────────────
+  if (isPC) {
+    return (
+      <>
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 2,
+          display: "flex", alignItems: "stretch",
+          background: T.surface0,
+          overflow: "hidden",
+          userSelect: "none", WebkitUserSelect: "none",
+        }}>
+          {/* 左栏：L1 设置面板直接可见 280px */}
+          <div style={{ width: 280, flexShrink: 0, borderRight: `0.5px solid ${T.border ?? "rgba(255,255,255,0.1)"}`, display: "flex", flexDirection: "column", padding: "16px 12px" }}>
+            <div style={{ fontSize: 10, color: T.textTertiary, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 12, textAlign: "center" }}>Practice Settings</div>
+            {/* 上55%: Mode + Intervals */}
+            <div style={{ display: "flex", gap: 8, flex: "0 0 55%", minHeight: 0, marginBottom: 8 }}>
+              <div style={{ flex: 1, minHeight: 0 }}>
+                <VerticalCardStack
+                  cards={MODE_CARDS} activeId={contentMode}
+                  onSelect={id => { if (id !== contentMode) handleCycleMode(id); }}
+                  renderCard={(card, isActive) => (
+                    <motion.div whileTap={{ scale: 0.96 }} style={{ height: 62, padding: "8px 10px", borderRadius: 16, background: isActive ? (T.accentSub ?? "rgba(232,162,60,0.1)") : (T.surface2 ?? "rgba(255,255,255,0.06)"), border: `1px solid ${isActive ? (T.accentBorder ?? "rgba(232,162,60,0.35)") : (T.border ?? "rgba(255,255,255,0.1)")}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, overflow: "hidden" }}>
+                      <ModeIcon mode={card.id} size={20} color={isActive ? (T.accent ?? "#E8A23C") : (T.textSecondary ?? "rgba(255,255,255,0.55)")} />
+                      <span style={{ fontSize: 10, fontWeight: 600, color: isActive ? (T.accent ?? "#E8A23C") : T.textPrimary, lineHeight: 1 }}>{card.label}</span>
+                      <span style={{ fontSize: 8, color: T.textTertiary, lineHeight: 1 }}>{card.sublabel}</span>
+                    </motion.div>
+                  )}
+                />
+              </div>
+              <div style={{ flex: 1, minHeight: 0 }}>
+                <VerticalCardStack
+                  cards={INTERVAL_CARDS} activeId={intervalPreset}
+                  onSelect={id => {
+                    const p = INTERVAL_PRESETS.find(x => x.id === id);
+                    if (id === "custom") setShowIVEditor(true);
+                    else if (p) { setIntervalPreset(id); setSelectedIntervals(p.intervals); }
+                  }}
+                  renderCard={(card, isActive) => (
+                    <motion.div whileTap={{ scale: 0.96 }} style={{ height: 62, padding: "8px 10px", borderRadius: 16, background: isActive ? (T.accentSub ?? "rgba(232,162,60,0.1)") : (T.surface2 ?? "rgba(255,255,255,0.06)"), border: `1px solid ${isActive ? (T.accentBorder ?? "rgba(232,162,60,0.35)") : (T.border ?? "rgba(255,255,255,0.1)")}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, overflow: "hidden" }}>
+                      <svg width="20" height="20" viewBox="0 0 22 22" fill="none" stroke={isActive ? (T.accent ?? "#E8A23C") : (T.textSecondary ?? "rgba(255,255,255,0.55)")} strokeWidth="1.5" strokeLinecap="round">
+                        <circle cx="6" cy="11" r="2.5" fill={isActive ? (T.accent ?? "#E8A23C") : (T.textSecondary ?? "rgba(255,255,255,0.55)")} stroke="none" />
+                        <circle cx="16" cy="11" r="2.5" />
+                        <path d="M8.5 10 Q11 6.5 13.5 10" />
+                      </svg>
+                      <span style={{ fontSize: 10, fontWeight: 600, color: isActive ? (T.accent ?? "#E8A23C") : T.textPrimary, lineHeight: 1 }}>{card.label}</span>
+                      <span style={{ fontSize: 8, color: T.textTertiary, lineHeight: 1 }}>{card.sublabel}</span>
+                    </motion.div>
+                  )}
+                />
+              </div>
+            </div>
+            {/* 下45%: SpaceChip + FlowChip */}
+            <div style={{ display: "flex", gap: 8, flex: "0 0 45%", minHeight: 0 }}>
+              <SpaceChip space={space} onTap={cycleSpacePreset} onLongPress={() => openL2("space")} />
+              <FlowChip flow={flow} onSelect={handleFlowPresetSelect} onLongPress={() => openL2("flow")} />
+            </div>
+          </div>
+
+          {/* 中栏：主内容 */}
+          <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}
+            {...longPress}>
+            {TopBar}
+            {FocusArea}
+            {FretboardArea}
+          </div>
+
+          {/* 右栏：统计 240px */}
+          <div style={{ width: 240, flexShrink: 0, borderLeft: `0.5px solid ${T.border ?? "rgba(255,255,255,0.1)"}`, padding: "16px 12px" }}>
+            <div style={{ fontSize: 10, color: T.textTertiary, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 12 }}>Stats</div>
+            <div style={{ fontSize: 13, color: T.textSecondary, marginBottom: 8 }}>
+              Accuracy: {score.total > 0 ? `${Math.round((score.correct / score.total) * 100)}%` : "—"}
+            </div>
+            <div style={{ fontSize: 13, color: T.textSecondary, marginBottom: 8 }}>
+              Correct: {score.correct} / {score.total}
+            </div>
+            <div style={{ fontSize: 13, color: T.textSecondary }}>
+              Streak: {streak}
+            </div>
+          </div>
+        </div>
+        {Layers}
+      </>
+    );
+  }
+
+  // ── Tablet 布局（双栏）────────────────────────────────────
+  if (isTablet) {
+    return (
+      <>
+        <motion.div
+          animate={anyLayerOpen ? { scale: 0.965, opacity: 0.85, filter: "blur(8px)" } : { scale: 1, opacity: 1, filter: "blur(0px)" }}
+          transition={SPRINGS.sheetPresent}
+          style={{
+            position: "fixed", inset: 0, zIndex: 2,
+            display: "flex", flexDirection: "row",
+            overflow: "hidden",
+            paddingTop: "env(safe-area-inset-top, 0px)",
+            paddingBottom: "env(safe-area-inset-bottom, 0px)",
+            background: T.surface0,
+            userSelect: "none", WebkitUserSelect: "none",
+            WebkitTouchCallout: "none", touchAction: "none",
+            pointerEvents: anyLayerOpen ? "none" : "auto",
+          }}
+          onContextMenu={e => e.preventDefault()}
+          {...longPress}
+        >
+          {/* 左：FocusCard + Fretboard */}
+          <div style={{ flex: 3, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+            {TopBar}
+            {FocusArea}
+            {FretboardArea}
+          </div>
+          {/* 右：BottomBar + 触发L1的拉手 */}
+          <div style={{ flex: 0, display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
+            <BottomBar
+              content={{ mode: contentMode, intervalPreset }}
+              space={space} flow={flow}
+              onOpen={() => setShowCC(true)}
+              isOpen={showCC}
+            />
+          </div>
+        </motion.div>
+        {Layers}
+      </>
+    );
+  }
+
+  // ── Mobile 布局（默认，position:fixed + safe-area-inset）──
+  return (
+    <>
+      <motion.div
+        animate={anyLayerOpen
+          ? { scale: 0.965, opacity: 0.85, filter: "blur(8px)" }
+          : { scale: 1,     opacity: 1,    filter: "blur(0px)" }
+        }
+        transition={SPRINGS.sheetPresent}
+        style={{
+          position: "fixed", inset: 0, zIndex: 2,
+          display: "flex", flexDirection: "column",
+          overflow: "hidden",
+          paddingTop:    "env(safe-area-inset-top, 0px)",
+          paddingBottom: "env(safe-area-inset-bottom, 0px)",
+          background: T.surface0,
+          userSelect: "none", WebkitUserSelect: "none",
+          WebkitTouchCallout: "none", touchAction: "none",
+          pointerEvents: anyLayerOpen ? "none" : "auto",
+        }}
+        onContextMenu={e => e.preventDefault()}
+        {...longPress}
+      >
+        {TopBar}
+        {FocusArea}
+        {FretboardArea}
+        <BottomBar
+          content={{ mode: contentMode, intervalPreset }}
+          space={space} flow={flow}
+          onOpen={() => setShowCC(true)}
+          isOpen={showCC}
+        />
+      </motion.div>
+      {Layers}
     </>
   );
 }

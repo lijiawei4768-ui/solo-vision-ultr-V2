@@ -7,6 +7,7 @@
 //     while scrolling horizontally inside trainer views.
 //
 // v3: add useVerticalSwipe for vertical page navigation
+// v4: add useUnifiedGesture (touch + mouse unified drag)
 // ─────────────────────────────────────────────────────────────
 import { useRef, useCallback } from "react";
 
@@ -57,8 +58,8 @@ export function useLongPress(callback, ms = 700) {
  * @param {number}     edgePx  - how many pixels from the right edge trigger onLeft (default 56)
  */
 export function useSwipe(onLeft, onRight, edgePx = 56) {
-  const startX   = useRef(null);
-  const startY   = useRef(null);
+  const startX = useRef(null);
+  const startY = useRef(null);
 
   return {
     onTouchStart: (e) => {
@@ -91,9 +92,9 @@ export function useSwipe(onLeft, onRight, edgePx = 56) {
 
 /**
  * Vertical swipe detection for page navigation
- * @param {() => void} onSwipeUp - called on upward swipe (to next page)
+ * @param {() => void} onSwipeUp   - called on upward swipe (to next page)
  * @param {() => void} onSwipeDown - called on downward swipe (to previous page)
- * @param {number} threshold - minimum swipe distance in pixels (default 60)
+ * @param {number}     threshold   - minimum swipe distance in pixels (default 60)
  */
 export function useVerticalSwipe(onSwipeUp, onSwipeDown, threshold = 60) {
   const startY = useRef(null);
@@ -116,10 +117,8 @@ export function useVerticalSwipe(onSwipeUp, onSwipeDown, threshold = 60) {
       // and swipe distance exceeds threshold
       if (Math.abs(dy) > threshold && Math.abs(dy) > Math.abs(dx) * 1.5) {
         if (dy < 0) {
-          // Swipe up - go to next page
           onSwipeUp?.();
         } else {
-          // Swipe down - go to previous page
           onSwipeDown?.();
         }
       }
@@ -148,6 +147,61 @@ export function useVerticalSwipe(onSwipeUp, onSwipeDown, threshold = 60) {
 
       startY.current = null;
       startX.current = null;
+    },
+  };
+}
+
+// ─────────────────────────────────────────────────────────────
+// useUnifiedGesture — 统一拖拽手势层（touch + mouse）
+//
+// 目的：让所有拖拽手势同时支持
+//   • touch（手机 / iPad）
+//   • mouse（PC 鼠标）
+//
+// 用法：
+//   const handlers = useUnifiedGesture({
+//     onStart: ({ x, y }) => ...,
+//     onMove:  ({ x, y }) => ...,
+//     onEnd:   () => ...,
+//   });
+//   <div {...handlers} />
+// ─────────────────────────────────────────────────────────────
+export function useUnifiedGesture({ onStart, onMove, onEnd }) {
+  const activeRef = useRef(false);
+
+  return {
+    // Touch 事件（手机 / iPad）
+    onTouchStart: (e) => {
+      activeRef.current = true;
+      onStart?.({ x: e.touches[0].clientX, y: e.touches[0].clientY });
+    },
+    onTouchMove: (e) => {
+      if (!activeRef.current) return;
+      e.preventDefault();
+      onMove?.({ x: e.touches[0].clientX, y: e.touches[0].clientY });
+    },
+    onTouchEnd: () => {
+      activeRef.current = false;
+      onEnd?.();
+    },
+    // Mouse 事件（PC）
+    onMouseDown: (e) => {
+      activeRef.current = true;
+      onStart?.({ x: e.clientX, y: e.clientY });
+    },
+    onMouseMove: (e) => {
+      if (!activeRef.current || e.buttons !== 1) return;
+      onMove?.({ x: e.clientX, y: e.clientY });
+    },
+    onMouseUp: () => {
+      activeRef.current = false;
+      onEnd?.();
+    },
+    onMouseLeave: () => {
+      if (activeRef.current) {
+        activeRef.current = false;
+        onEnd?.();
+      }
     },
   };
 }
