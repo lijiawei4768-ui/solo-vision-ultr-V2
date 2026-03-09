@@ -346,6 +346,7 @@ export default function App() {
                     <IntervalTrainer
                       key="interval"
                       settings={settings}
+                      onSettings={handleSettings}
                       audioEnabled={audioEnabled}
                       setAudioEnabled={setAudioEnabled}
                     />

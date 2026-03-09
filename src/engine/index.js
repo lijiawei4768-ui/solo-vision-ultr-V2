@@ -16,3 +16,13 @@ export {
   loadCalibrationProfile,
   defaultCalibrationProfile,
 } from './CalibrationProfile';
+
+// FretboardModel — 频率转弦位建模
+export {
+  freqToFretPositions,
+  getBestFretPosition,
+  isCorrectString,
+  getStringMastery,
+  getStringName,
+  STANDARD_TUNING,
+} from './FretboardModel';
