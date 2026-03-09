@@ -1,0 +1,10 @@
+node_modules/
+build/
+.git/
+.cursor/
+public/
+scripts/
+*.bat
+*.md
+package-lock.json
+repomix-output.xml
