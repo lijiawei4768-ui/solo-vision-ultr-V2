@@ -29,11 +29,6 @@ import {
   SEQ_INFO, ROOT_INFO, ENTRY_INFO, getShapeType,
 } from "./intervals/constants";
 
-function useT() {
-  const ctx = useContext(ThemeContext);
-  return ctx?.tokens ?? DT;
-}
-
 // ─────────────────────────────────────────────────────────────
 // SVG Icon Components
 
