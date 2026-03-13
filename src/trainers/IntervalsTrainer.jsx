@@ -1,15 +1,23 @@
+
 // ─────────────────────────────────────────────────────────────
-// INTERVAL TRAINER v5.0 — 动态视口 + 响应式布局 + L2 QuickAdjust
+// INTERVAL TRAINER v5.2-L0 — Mobile L0 UI Library Pass
 //
-// L0: position:fixed 全屏舞台（手机/平板/PC自适应）
-// L1: ControlCenter — iOS half-sheet（55% Mode+Intervals / 45% SpaceChip+FlowChip）
-// L2: QuickAdjustLayer — iOS 控制中心式快调面板
-// L3: Editors — L2PushScreen 全屏编辑器（从 L2 "更多设置" 进入）
+// Phase A (비례/공간):
+//   • FocusCard height 22→26dvh  • PositionStrip 재건  • BottomBar +6px
+//   • FretboardArea padding/radius  • TopBar 모드 chip화  • MicButton RMS fix
+//
+// Phase B (UI 라이브러리 적용):
+//   ① MicButton    — Cult UI Dynamic Island: layout animation, 신호유무로 pill↔wide
+//   ② FindModeCapsules — Hover.dev ChipTabs: layoutId="find-mode-pill" sliding indicator
+//   ③ FocusCard    — Cult UI ShiftCard: 7겹 boxShadow (inset rim + depth cascade)
+//   ④ BottomBar chips — 모드 aware accent chip + inset rim highlight
+//   ⑤ TopBar icons — useAnimation tap sequences: theme rotate, settings gear spin
+//
 // ─────────────────────────────────────────────────────────────
 import React, {
   useState, useEffect, useRef, useCallback, useContext,
 } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useAnimation } from "framer-motion";
 import { DT, FONT_DISPLAY, FONT_TEXT, FONT_MONO, SPRINGS } from "../theme";
 import { INTERVAL_LABELS, NOTE_NAMES, FLAT_NAMES, SCALES, SCALE_META, getParentKey } from "../constants";
 import { getMidi, midiToNote, freqToMidi, findNotePositions, noteNameToChroma, haptic } from "../musicUtils";
@@ -122,61 +130,63 @@ function ControlIcon({ icon, size = 18, color = "currentColor" }) {
 function MicButton({ enabled, rms, status, onToggle }) {
   const T = useT();
   const isListening = enabled && status === "listening";
-  const isCorrect = enabled && status === "correct";
-  const isWrong = enabled && (status === "wrong" || status === "wrongHint");
+  const isCorrect   = enabled && status === "correct";
+  const isWrong     = enabled && (status === "wrong" || status === "wrongHint");
+  // "active" = mic on AND has signal
+  const hasSignal   = enabled && rms && rms > 0.008;
 
-  // RMS 信号条（5根）
-  const bars = [0, 1, 2, 3, 4].map(i => {
-    const scale = rms ? Math.random() * rms : 0;
-    const height = 4 + Math.min(16, scale * 20);
-    return height;
+  // RMS 信号条（5根）— 固定权重 × rms，无随机抖动
+  const RMS_PHASES = [0.7, 0.5, 1.0, 0.6, 0.85];
+  const bars = RMS_PHASES.map(weight => {
+    const level = rms ? Math.min(1, rms * 20) : 0;
+    return 2 + Math.round(level * weight * 13);
   });
 
-  const micColor = !enabled
-    ? (T.textTertiary ?? "rgba(255,255,255,0.35)")
-    : isCorrect
-      ? "#34C759"
-      : isWrong
-        ? (T.accent ?? "#E8A23C")
-        : "#34C759";
+  const accent = isCorrect ? "#34C759" : isWrong ? (T.accent ?? "#E8A23C") : "#34C759";
+  const micColor = !enabled ? (T.textTertiary ?? "rgba(255,255,255,0.35)") : accent;
+  const borderColor = enabled
+    ? (isCorrect ? "rgba(52,199,89,0.5)" : isWrong ? "rgba(232,162,60,0.4)" : "rgba(52,199,89,0.38)")
+    : (T.border ?? "rgba(255,255,255,0.1)");
+  const bgColor = enabled
+    ? (isCorrect ? "rgba(52,199,89,0.14)" : isWrong ? "rgba(232,162,60,0.12)" : "rgba(52,199,89,0.10)")
+    : (T.surface2 ?? "rgba(255,255,255,0.06)");
 
   return (
+    // ── Dynamic Island pattern (Cult UI): layout prop + transformOrigin top-center
+    // shell morphs between compact (pill) ↔ long (wider + bars) automatically
     <motion.button
       onClick={onToggle}
-      layout
-      transition={{ stiffness: 400, damping: 30 }}
-      whileTap={{ scale: 0.88 }}
+      layout                                       // ← framer-motion layout animation
+      transition={{ layout: { type: "spring", stiffness: 400, damping: 30 } }}
+      whileTap={{ scale: 0.9 }}
       style={{
+        transformOrigin: "center",                 // ← Dynamic Island origin
         height: 30,
         borderRadius: 15,
         display: "flex",
         alignItems: "center",
-        gap: 5,
+        gap: 4,
         cursor: "pointer",
-        border: `0.5px solid ${enabled ? "rgba(52,199,89,0.45)" : (T.border ?? "rgba(255,255,255,0.1)")}`,
-        background: enabled ? "rgba(52,199,89,0.12)" : (T.surface2 ?? "rgba(255,255,255,0.06)"),
+        border: `0.5px solid ${borderColor}`,
+        background: bgColor,
         color: micColor,
         fontSize: 10,
         fontWeight: 600,
         fontFamily: FONT_TEXT,
-        padding: "0 10px",
+        // padding adapts: compact when off/silent, wider when active
+        paddingLeft: 9,
+        paddingRight: hasSignal ? 10 : 9,
         overflow: "hidden",
-        minWidth: 70,
-        justifyContent: "flex-start",
       }}
     >
-      {/* MIC 图标 */}
+      {/* MIC 图标 — subtle breathing pulse when listening */}
       <motion.svg
-        width="11"
-        height="11"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke={micColor}
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        animate={isListening ? { scale: [1, 1.2, 1] } : { scale: 1 }}
-        transition={isListening ? { duration: 1.5, repeat: Infinity } : { duration: 0 }}
+        width="11" height="11" viewBox="0 0 24 24"
+        fill="none" stroke={micColor} strokeWidth="2.5"
+        strokeLinecap="round" strokeLinejoin="round"
+        animate={isListening && !hasSignal ? { scale: [1, 1.15, 1], opacity: [1, 0.7, 1] } : { scale: 1, opacity: 1 }}
+        transition={isListening ? { duration: 1.8, repeat: Infinity, ease: "easeInOut" } : { duration: 0.15 }}
+        style={{ flexShrink: 0 }}
       >
         <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
         <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
@@ -184,34 +194,153 @@ function MicButton({ enabled, rms, status, onToggle }) {
         <line x1="8" y1="23" x2="16" y2="23"/>
       </motion.svg>
 
-      {/* RMS 信号条（仅 ON 时显示） */}
-      {enabled && (
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 1.5, height: 14, marginLeft: 2 }}>
-          {bars.map((h, i) => (
-            <motion.div
-              key={i}
-              animate={{ height: h }}
-              transition={{ duration: 0.08, ease: "linear" }}
-              style={{
-                width: 2.5,
-                borderRadius: 1,
-                background: isCorrect ? "#34C759" : isWrong ? (T.accent ?? "#E8A23C") : "rgba(52,199,89,0.7)",
-              }}
-            />
-          ))}
-        </div>
-      )}
+      {/* RMS 信号条 — 仅有信号时 layout-in，shell 自动变宽 */}
+      <AnimatePresence>
+        {hasSignal && (
+          <motion.div
+            initial={{ width: 0, opacity: 0 }}
+            animate={{ width: "auto", opacity: 1 }}
+            exit={{ width: 0, opacity: 0 }}
+            transition={{ duration: 0.12 }}
+            style={{ display: "flex", alignItems: "flex-end", gap: 1.5, height: 14, overflow: "hidden" }}
+          >
+            {bars.map((h, i) => (
+              <motion.div
+                key={i}
+                animate={{ height: h }}
+                transition={{ duration: 0.07, ease: "linear" }}
+                style={{
+                  width: 2.5, borderRadius: 1.5,
+                  background: isCorrect ? "#34C759" : isWrong ? (T.accent ?? "#E8A23C") : "rgba(52,199,89,0.75)",
+                }}
+              />
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* 状态文字 */}
-      <span style={{ whiteSpace: "nowrap" }}>
-        {!enabled ? "MIC" : isCorrect ? "Correct" : isWrong ? "Again" : "Listening"}
-      </span>
+      {/* 状态文字 — layout-animated so it glides when bars appear/disappear */}
+      <motion.span layout style={{ whiteSpace: "nowrap", flexShrink: 0 }}>
+        {!enabled ? "MIC" : isCorrect ? "✓" : isWrong ? "Again" : "Listening"}
+      </motion.span>
     </motion.button>
   );
 }
 
 // ─────────────────────────────────────────────────────────────
-// VocalizationPrompt
+// IconBtn — animated icon button (UseAnimations pattern via framer-motion)
+// tap triggers a brief motion sequence on the SVG: scale burst + rotate/fade
+// no new dependencies — pure framer-motion useAnimation
+// ─────────────────────────────────────────────────────────────
+function ThemeToggleBtn({ isDark, onToggle, T }) {
+  const iconControls = useAnimation();
+
+  async function handleClick() {
+    // tap sequence: quick scale-up → rotate → settle
+    await iconControls.start({
+      scale: 1.3,
+      rotate: isDark ? -30 : 30,
+      opacity: 0.5,
+      transition: { duration: 0.12, ease: "easeOut" },
+    });
+    await iconControls.start({
+      scale: 1,
+      rotate: 0,
+      opacity: 1,
+      transition: { type: "spring", stiffness: 500, damping: 22 },
+    });
+    onToggle?.();
+  }
+
+  const stroke = T.textSecondary ?? "rgba(255,255,255,0.55)";
+  return (
+    <motion.button
+      onClick={handleClick}
+      whileTap={{ scale: 0.86 }}
+      transition={SPRINGS.tap}
+      style={{
+        width: 30, height: 30, borderRadius: 10,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        cursor: "pointer",
+        border: `0.5px solid ${T.border ?? "rgba(255,255,255,0.1)"}`,
+        background: T.surface2 ?? "rgba(255,255,255,0.06)",
+        // inset rim
+        boxShadow: "0 1px 0 0 rgba(255,255,255,0.05) inset",
+      }}
+    >
+      <motion.svg
+        animate={iconControls}
+        width="14" height="14" viewBox="0 0 24 24"
+        fill="none" stroke={stroke} strokeWidth="2"
+        strokeLinecap="round" strokeLinejoin="round"
+      >
+        {isDark ? (
+          <>
+            <circle cx="12" cy="12" r="4"/>
+            <line x1="12" y1="2"  x2="12" y2="4"/>
+            <line x1="12" y1="20" x2="12" y2="22"/>
+            <line x1="4.22"  y1="4.22"  x2="5.64"  y2="5.64"/>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+            <line x1="2"  y1="12" x2="4"  y2="12"/>
+            <line x1="20" y1="12" x2="22" y2="12"/>
+            <line x1="4.22"  y1="19.78" x2="5.64"  y2="18.36"/>
+            <line x1="18.36" y1="5.64"  x2="19.78" y2="4.22"/>
+          </>
+        ) : (
+          <path d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/>
+        )}
+      </motion.svg>
+    </motion.button>
+  );
+}
+
+function SettingsBtn({ onOpen, T }) {
+  const iconControls = useAnimation();
+
+  async function handleClick() {
+    // settings gear: spin 60° then spring back
+    await iconControls.start({
+      rotate: 60,
+      scale: 1.15,
+      transition: { duration: 0.18, ease: "easeOut" },
+    });
+    await iconControls.start({
+      rotate: 0,
+      scale: 1,
+      transition: { type: "spring", stiffness: 480, damping: 20 },
+    });
+    onOpen?.();
+  }
+
+  const stroke = T.textSecondary ?? "rgba(255,255,255,0.55)";
+  return (
+    <motion.button
+      onClick={handleClick}
+      whileTap={{ scale: 0.86 }}
+      transition={SPRINGS.tap}
+      style={{
+        width: 30, height: 30, borderRadius: 10,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        cursor: "pointer",
+        border: `0.5px solid ${T.border ?? "rgba(255,255,255,0.1)"}`,
+        background: T.surface2 ?? "rgba(255,255,255,0.06)",
+        boxShadow: "0 1px 0 0 rgba(255,255,255,0.05) inset",
+      }}
+    >
+      <motion.svg
+        animate={iconControls}
+        width="14" height="14" viewBox="0 0 24 24"
+        fill="none" stroke={stroke} strokeWidth="2"
+        strokeLinecap="round" strokeLinejoin="round"
+      >
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83l-.06.06a2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+      </motion.svg>
+    </motion.button>
+  );
+}
+
+
 // ─────────────────────────────────────────────────────────────
 function VocalizationPrompt({ interval, shapeType, onDismiss }) {
   const T = useT();
@@ -367,66 +496,91 @@ function FretRangeSlider({ value, onChange }) {
 // ─────────────────────────────────────────────────────────────
 // VerticalCardStack — swipeable card deck for Mode & Intervals
 // ─────────────────────────────────────────────────────────────
-function VerticalCardStack({ cards, activeId, onSelect, renderCard }) {
+function VerticalCardStack({ cards, activeId, onSelect, renderCard, cardHeight = 68 }) {
   const startYRef  = useRef(null);
-  const [offsetY,    setOffsetY]    = useState(0);
+  const [dragY,    setDragY]    = useState(0);
   const [isDragging, setIsDragging] = useState(false);
-  const currentIdx = Math.max(0, cards.findIndex(c => c.id === activeId));
   const N = cards.length;
-  const prevIdx = (currentIdx - 1 + N) % N;
-  const nextIdx = (currentIdx + 1) % N;
+  const currentIdx = Math.max(0, cards.findIndex(c => c.id === activeId));
 
   function handleTouchStart(e) {
     startYRef.current = e.touches[0].clientY;
     setIsDragging(true);
+    setDragY(0);
   }
   function handleTouchMove(e) {
     if (startYRef.current === null) return;
     e.stopPropagation();
-    setOffsetY(e.touches[0].clientY - startYRef.current);
+    setDragY(e.touches[0].clientY - startYRef.current);
   }
   function handleTouchEnd() {
     if (startYRef.current === null) return;
-    if (Math.abs(offsetY) > 28) {
-      onSelect(offsetY > 0
-        ? cards[(currentIdx - 1 + N) % N].id
-        : cards[(currentIdx + 1) % N].id);
+    const threshold = cardHeight * 0.35;
+    if (dragY < -threshold) {
+      onSelect(cards[(currentIdx + 1) % N].id);
+    } else if (dragY > threshold) {
+      onSelect(cards[(currentIdx - 1 + N) % N].id);
     }
     startYRef.current = null;
     setIsDragging(false);
-    setOffsetY(0);
+    setDragY(0);
   }
 
-  const drag = isDragging ? offsetY * 0.25 : 0;
+  // peek: how much of next card shows below current
+  const peek = 9;
+  // container shows current card + two peeking cards below
+  const containerHeight = cardHeight + peek * 2;
+
+  // 3 cards: current(0), next(1), next+1(2)
+  const visibleCards = [0, 1, 2].map(offset => ({
+    card: cards[(currentIdx + offset) % N],
+    offset,
+  }));
 
   return (
     <div
-      style={{ position: "relative", height: 140, overflow: "hidden", userSelect: "none", WebkitUserSelect: "none" }}
+      style={{
+        position: "relative",
+        height: containerHeight,
+        overflow: "hidden",
+        userSelect: "none", WebkitUserSelect: "none",
+      }}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      {[
-        { card: cards[prevIdx],    y: -62 + drag, scale: 0.92, opacity: 0.50 },
-        { card: cards[currentIdx], y:   0 + drag, scale: 1.0,  opacity: 1.0  },
-        { card: cards[nextIdx],    y:  62 + drag, scale: 0.92, opacity: 0.50 },
-      ].map(({ card, y, scale, opacity }, i) => (
-        <motion.div
-          key={card.id + "-" + i}
-          animate={{ y, scale, opacity }}
-          transition={SPRINGS.jelly}
-          onClick={() => i !== 1 ? onSelect(card.id) : undefined}
-          style={{ position: "absolute", width: "100%", left: 0, top: "50%", marginTop: -31 }}
-        >
-          {renderCard(card, i === 1)}
-        </motion.div>
-      ))}
+      {/* render back-to-front so current is on top */}
+      {[...visibleCards].reverse().map(({ card, offset }) => {
+        const peekOffset = offset * peek * 1.4;
+        const scale = 1 - offset * 0.035;
+        const opacity = 1 - offset * 0.32;
+        const liveY = isDragging
+          ? peekOffset + dragY * Math.pow(0.55, offset)
+          : peekOffset;
+
+        return (
+          <motion.div
+            key={card.id + "-" + offset}
+            animate={isDragging ? {} : { y: peekOffset, scale, opacity }}
+            style={isDragging
+              ? { y: liveY, scale, opacity, position: "absolute", width: "100%", left: 0, top: 0 }
+              : { position: "absolute", width: "100%", left: 0, top: 0 }
+            }
+            transition={SPRINGS.jelly}
+            onClick={offset > 0 ? () => onSelect(card.id) : undefined}
+          >
+            {renderCard(card, offset === 0)}
+          </motion.div>
+        );
+      })}
     </div>
   );
 }
 
 // ─────────────────────────────────────────────────────────────
-// FindModeCapsules — NEW: Find Root / Find Interval above FocusCard
+// FindModeCapsules — Find Root / Find Interval toggle
+// layoutId animated pill: active indicator slides between options
+// Pattern: buildui.com AnimatedTabs / Hover.dev ChipTabs
 // ─────────────────────────────────────────────────────────────
 function FindModeCapsules({ findMode, onSelect }) {
   const T = useT();
@@ -434,45 +588,73 @@ function FindModeCapsules({ findMode, onSelect }) {
     { id: "root",     label: "Find Root" },
     { id: "interval", label: "Find Interval" },
   ];
+
   return (
     <div style={{
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
-      gap: 8,
-      height: 34,
+      height: 36,
       paddingLeft: 16,
       paddingRight: 16,
+      paddingTop: 4,
       flexShrink: 0,
     }}>
-      {options.map(opt => {
-        const active = findMode === opt.id;
-        return (
-          <motion.button
-            key={opt.id}
-            onClick={() => onSelect(opt.id)}
-            whileTap={{ scale: 0.95 }}
-            transition={SPRINGS.tap}
-            style={{
-              height: 30,
-              padding: "0 14px",
-              borderRadius: 15,
-              fontSize: 12,
-              fontWeight: active ? 700 : 500,
-              fontFamily: FONT_TEXT,
-              cursor: "pointer",
-              border: `1px solid ${active ? (T.accentBorder ?? "rgba(232,162,60,0.35)") : (T.border ?? "rgba(255,255,255,0.1)")}`,
-              background: active ? (T.accentSub ?? "rgba(232,162,60,0.1)") : "rgba(255,255,255,0.04)",
-              color: active ? (T.accent ?? "#E8A23C") : (T.textTertiary ?? "rgba(255,255,255,0.35)"),
-              transition: "all 0.18s",
-              userSelect: "none",
-              WebkitUserSelect: "none",
-            }}
-          >
-            {opt.label}
-          </motion.button>
-        );
-      })}
+      {/* Rail container — neutral background, options sit inside */}
+      <div style={{
+        display: "flex",
+        gap: 3,
+        padding: "3px",
+        borderRadius: 18,
+        background: T.surface2 ?? "rgba(255,255,255,0.06)",
+        border: `0.5px solid ${T.border ?? "rgba(255,255,255,0.08)"}`,
+      }}>
+        {options.map(opt => {
+          const active = findMode === opt.id;
+          return (
+            <motion.button
+              key={opt.id}
+              onClick={() => onSelect(opt.id)}
+              whileTap={{ scale: 0.95 }}
+              transition={SPRINGS.tap}
+              style={{
+                position: "relative",
+                height: 26,
+                padding: "0 13px",
+                borderRadius: 13,
+                fontSize: 11,
+                fontWeight: active ? 650 : 450,
+                fontFamily: FONT_TEXT,
+                cursor: "pointer",
+                border: "none",
+                background: "transparent",
+                color: active ? (T.accent ?? "#8875FF") : (T.textTertiary ?? "rgba(255,255,255,0.38)"),
+                transition: "color 0.18s, font-weight 0.18s",
+                userSelect: "none",
+                WebkitUserSelect: "none",
+                zIndex: 1,
+              }}
+            >
+              {/* ── layoutId sliding pill — behind text ── */}
+              {active && (
+                <motion.span
+                  layoutId="find-mode-pill"
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    borderRadius: 13,
+                    background: T.accentSub ?? "rgba(136,117,255,0.15)",
+                    border: `0.5px solid ${T.accentBorder ?? "rgba(136,117,255,0.3)"}`,
+                    zIndex: -1,
+                  }}
+                  transition={{ type: "spring", stiffness: 420, damping: 30 }}
+                />
+              )}
+              {opt.label}
+            </motion.button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -481,7 +663,7 @@ function FindModeCapsules({ findMode, onSelect }) {
 // BottomBar — NEW: merged Handle (top) + 4 status chips (bottom)
 // Entire bar: tap or swipe-up opens L1
 // ─────────────────────────────────────────────────────────────
-function BottomBar({ content, space, flow, onOpen, isOpen }) {
+function BottomBar({ content, space, flow, onOpen, isOpen, streak, score }) {
   const T = useT();
   const startYRef = useRef(null);
 
@@ -505,7 +687,13 @@ function BottomBar({ content, space, flow, onOpen, isOpen }) {
     random: "Random", free: "Free",
   }[flow.order] ?? flow.order;
 
-  const chips = [modeLabel, presetLabel, spaceLabel, flowLabel];
+  // chip definitions: label + whether it deserves accent treatment
+  const chips = [
+    { label: modeLabel,   accent: content.mode === "blind" || content.mode === "coreDrill" },
+    { label: presetLabel, accent: false },
+    { label: spaceLabel,  accent: false },
+    { label: flowLabel,   accent: flow.order === "random" },
+  ];
 
   return (
     <div
@@ -513,19 +701,18 @@ function BottomBar({ content, space, flow, onOpen, isOpen }) {
       onTouchEnd={handleTouchEnd}
       onClick={onOpen}
       style={{
-        height: 56,
+        height: 62,
         flexShrink: 0,
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        gap: 6,
+        gap: 7,
         cursor: "pointer",
         userSelect: "none",
         WebkitUserSelect: "none",
         WebkitTouchCallout: "none",
         touchAction: "none",
-        // ── 规范要求：T.surface2 背景，顶部圆角，贴底 ──────
         background: T.surface2 ?? "rgba(255,255,255,0.06)",
         borderRadius: "16px 16px 0 0",
         borderTop: `0.5px solid ${T.border ?? "rgba(255,255,255,0.1)"}`,
@@ -534,26 +721,58 @@ function BottomBar({ content, space, flow, onOpen, isOpen }) {
       {/* Handle line */}
       <motion.div
         animate={{
-          width: isOpen ? 38 : 42,
-          opacity: isOpen ? 0.6 : [0.35, 0.5, 0.35],
-          background: isOpen ? (T.accent ?? "#E8A23C") : "rgba(255,255,255,0.4)",
+          width: isOpen ? 36 : 40,
+          opacity: isOpen ? 0.7 : [0.3, 0.5, 0.3],
+          background: isOpen ? (T.accent ?? "#E8A23C") : "rgba(255,255,255,0.35)",
         }}
         transition={isOpen ? SPRINGS.feather : {
-          opacity: { duration: 2.4, repeat: Infinity, ease: "easeInOut" },
+          opacity: { duration: 2.6, repeat: Infinity, ease: "easeInOut" },
           width: SPRINGS.feather,
         }}
         style={{ height: 4, borderRadius: 2, flexShrink: 0 }}
       />
-      {/* 4 Status chips */}
-      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-        {chips.map((label, i) => (
+      {/* streak + accuracy row */}
+      <AnimatePresence>
+        {(streak > 0 || score?.total > 0) && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 16 }} exit={{ opacity: 0, height: 0 }}
+            transition={SPRINGS.feather}
+            style={{ display: "flex", alignItems: "center", gap: 8, overflow: "hidden" }}
+          >
+            {streak > 0 && (
+              <div style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 10, fontWeight: 700, color: T.accent ?? "#E8A23C", fontFamily: FONT_MONO }}>
+                <svg width="8" height="10" viewBox="0 0 10 12" fill="currentColor">
+                  <path d="M5 0C5 0 8 3 8 5.5C8 7.5 6.8 9 5 9C3.2 9 2 7.5 2 5.5C2 3 5 0 5 0Z" opacity="0.9"/>
+                </svg>
+                {streak}
+              </div>
+            )}
+            {score?.total > 0 && (
+              <div style={{ fontSize: 10, color: T.textTertiary, fontFamily: FONT_MONO }}>
+                {Math.round((score.correct / score.total) * 100)}%
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {/* 4 Status chips — accent-aware + inset rim highlight (Cult UI ShiftCard) */}
+      <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
+        {chips.map(({ label, accent: isAccent }, i) => (
           <div key={i} style={{
-            height: 20, padding: "0 8px", borderRadius: 10,
-            background: "rgba(255,255,255,0.05)",
-            border: `0.5px solid ${T.border ?? "rgba(255,255,255,0.1)"}`,
-            fontSize: 9, color: T.textTertiary ?? "rgba(255,255,255,0.35)",
+            height: 22, padding: "0 9px", borderRadius: 11,
+            background: isAccent
+              ? (T.accentSub ?? "rgba(136,117,255,0.12)")
+              : "rgba(255,255,255,0.05)",
+            border: `0.5px solid ${isAccent
+              ? (T.accentBorder ?? "rgba(136,117,255,0.28)")
+              : (T.border ?? "rgba(255,255,255,0.09)")}`,
+            // inset rim — subtle top-edge light line (Cult UI pattern)
+            boxShadow: "0 1px 0 0 rgba(255,255,255,0.05) inset",
+            fontSize: 10,
+            color: isAccent ? (T.accent ?? "#8875FF") : (T.textTertiary ?? "rgba(255,255,255,0.38)"),
             display: "flex", alignItems: "center",
-            letterSpacing: 0.3, fontFamily: FONT_TEXT,
+            letterSpacing: 0.2, fontFamily: FONT_TEXT,
+            fontWeight: isAccent ? 600 : 500,
           }}>
             {label}
           </div>
@@ -573,11 +792,11 @@ function FocusCardContent({ findMode, contentMode, stage, rootNote, ivName }) {
   if (contentMode === "rootFirst" && stage === "root") {
     return (
       <div style={{ textAlign: "center" }}>
-        <div style={{ fontSize: 9, color: T.textTertiary, letterSpacing: 2, textTransform: "uppercase", marginBottom: 8, fontFamily: FONT_TEXT }}>
+        <div style={{ fontSize: 10, color: T.textTertiary, letterSpacing: 1.8, textTransform: "uppercase", marginBottom: 10, fontFamily: FONT_TEXT }}>
           PLAY ROOT
         </div>
         <div style={{
-          fontSize: 76, fontWeight: 800, letterSpacing: "-3px", lineHeight: 1,
+          fontSize: 80, fontWeight: 800, letterSpacing: "-3px", lineHeight: 1,
           color: T.textPrimary, fontFamily: FONT_DISPLAY,
         }}>
           {rootNote}
@@ -590,16 +809,16 @@ function FocusCardContent({ findMode, contentMode, stage, rootNote, ivName }) {
   if (findMode === "root") {
     return (
       <div style={{ textAlign: "center" }}>
-        <div style={{ fontSize: 9, color: T.textTertiary, letterSpacing: 2, textTransform: "uppercase", marginBottom: 8, fontFamily: FONT_TEXT }}>
+        <div style={{ fontSize: 10, color: T.textTertiary, letterSpacing: 1.8, textTransform: "uppercase", marginBottom: 10, fontFamily: FONT_TEXT }}>
           FIND ROOT
         </div>
         <div style={{
-          fontSize: 64, fontWeight: 800, letterSpacing: "-2px", lineHeight: 1,
+          fontSize: 68, fontWeight: 800, letterSpacing: "-2px", lineHeight: 1,
           color: T.accent, fontFamily: FONT_DISPLAY,
         }}>
           {ivName}
         </div>
-        <div style={{ fontSize: 13, color: T.textTertiary, marginTop: 8, fontFamily: FONT_TEXT, letterSpacing: 0.3 }}>
+        <div style={{ fontSize: 12, color: T.textTertiary, marginTop: 10, fontFamily: FONT_TEXT, letterSpacing: 0.3 }}>
           target · find its root
         </div>
       </div>
@@ -608,22 +827,22 @@ function FocusCardContent({ findMode, contentMode, stage, rootNote, ivName }) {
 
   // Normal: "[b3] from [G]"
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-      <div style={{ fontSize: 9, color: T.textTertiary, letterSpacing: 2, textTransform: "uppercase", fontFamily: FONT_TEXT }}>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+      <div style={{ fontSize: 10, color: T.textTertiary, letterSpacing: 1.8, textTransform: "uppercase", fontFamily: FONT_TEXT }}>
         {contentMode === "coreDrill" ? "CORE DRILL"
           : contentMode === "blind" ? "BLIND MODE"
           : "FIND INTERVAL"}
       </div>
       <div style={{
-        fontSize: 68, fontWeight: 800, letterSpacing: "-2.5px", lineHeight: 1,
+        fontSize: 72, fontWeight: 800, letterSpacing: "-2.5px", lineHeight: 1,
         color: T.accent, fontFamily: FONT_DISPLAY,
       }}>
         {ivName}
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: T.textTertiary, fontFamily: FONT_TEXT }}>
-        <span>from</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: FONT_TEXT }}>
+        <span style={{ fontSize: 12, color: T.textTertiary }}>from</span>
         <span style={{
-          fontSize: 22, fontWeight: 700, color: T.textSecondary,
+          fontSize: 26, fontWeight: 700, color: T.textSecondary,
           fontFamily: FONT_DISPLAY, letterSpacing: "-0.5px",
         }}>
           {rootNote}
@@ -638,7 +857,85 @@ function FocusCardContent({ findMode, contentMode, stage, rootNote, ivName }) {
 // ─────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────
-// SpaceChip — L1 第二行左侧：点击=循环预设，长按=进L2
+// SpaceIcon — 2×2 grid, state-aware
+// ─────────────────────────────────────────────────────────────
+function SpaceIcon({ space, size = 26, accentColor = "#E8A23C" }) {
+  const cw = (size - 6) / 2;
+  const ch = (size * 0.85 - 6) / 2;
+  const gh = size * 0.85;
+  const preset = space?.preset ?? "full";
+  const fMin   = space?.fretRange?.min ?? 0;
+
+  const active = (() => {
+    if (preset === "full") return [true, true, true, true];
+    if (fMin < 4)  return [true, false, true, false];
+    if (fMin < 8)  return [false, true, false, true];
+    return [false, true, false, false];
+  })();
+
+  const cells = [
+    { x: 2,      y: 2,      a: active[0] },
+    { x: cw + 4, y: 2,      a: active[1] },
+    { x: 2,      y: ch + 4, a: active[2] },
+    { x: cw + 4, y: ch + 4, a: active[3] },
+  ];
+
+  return (
+    <svg width={size} height={gh} viewBox={`0 0 ${size} ${gh}`}>
+      {cells.map((c, i) => (
+        <rect key={i} x={c.x} y={c.y} width={cw} height={ch} rx={2}
+          fill={c.a ? accentColor : "rgba(255,255,255,0.1)"}
+          opacity={c.a ? 0.9 : 1}
+        />
+      ))}
+    </svg>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// FlowIcon — 6 string lines, order-aware
+// ─────────────────────────────────────────────────────────────
+function FlowIcon({ flow, size = 26, accentColor = "#E8A23C" }) {
+  const w = size, h = size;
+  const numStr = 6;
+  const gap = (h - 4) / (numStr - 1);
+  const order = flow?.order ?? "random";
+
+  const activeSet = (() => {
+    if (order === "lowToHigh") return new Set([3, 4, 5]);
+    if (order === "highToLow") return new Set([0, 1, 2]);
+    if (order === "alternate")  return new Set([0, 2, 4]);
+    if (order === "sequence")   return new Set([0, 1, 2, 3, 4, 5]);
+    return new Set([2]); // random
+  })();
+
+  return (
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
+      {Array.from({ length: numStr }).map((_, i) => {
+        const y = 2 + i * gap;
+        const isActive = activeSet.has(i);
+        const baseW = 0.7 + (i / (numStr - 1)) * 1.2;
+        return (
+          <line key={i} x1={2} y1={y} x2={w - 2} y2={y}
+            stroke={isActive ? accentColor : "rgba(255,255,255,0.18)"}
+            strokeWidth={isActive ? baseW + 1.3 : baseW}
+            strokeLinecap="round"
+          />
+        );
+      })}
+      {order === "lowToHigh" && (
+        <path d={`M${w*0.72} ${h*0.38} L${w-3} ${h*0.54} L${w*0.72} ${h*0.70}`}
+          stroke={accentColor} strokeWidth={1.1} fill="none" strokeLinecap="round" opacity={0.65}/>
+      )}
+      {order === "highToLow" && (
+        <path d={`M${w*0.28} ${h*0.38} L3 ${h*0.54} L${w*0.28} ${h*0.70}`}
+          stroke={accentColor} strokeWidth={1.1} fill="none" strokeLinecap="round" opacity={0.65}/>
+      )}
+    </svg>
+  );
+}
+
+// ───────────────────────────────────────────────────────────── — L1 第二行左侧：点击=循环预设，长按=进L2
 // ─────────────────────────────────────────────────────────────
 function SpaceChip({ space, onTap, onLongPress }) {
   const T = useT();
@@ -673,45 +970,24 @@ function SpaceChip({ space, onTap, onLongPress }) {
       style={{
         flex: 1,
         height: "100%",
-        borderRadius: 14,
+        borderRadius: 12,
         background: lpActive ? (T.accentSub ?? "rgba(232,162,60,0.1)") : (T.surface2 ?? "rgba(255,255,255,0.06)"),
         border: `0.5px solid ${space.enabled ? (T.accentBorder ?? "rgba(232,162,60,0.35)") : (T.border ?? "rgba(255,255,255,0.1)")}`,
         display: "flex", flexDirection: "column",
         alignItems: "center", justifyContent: "center",
-        gap: 4, cursor: "pointer",
+        gap: 5, cursor: "pointer",
         userSelect: "none", WebkitUserSelect: "none",
         transition: "background 0.15s, border-color 0.15s",
-        padding: "6px 8px",
+        padding: "10px 12px",
       }}
     >
-      {/* 顶部：preset name */}
+      {/* Icon */}
+      <SpaceIcon space={space} size={26} accentColor={T.accent ?? "#E8A23C"} />
+      {/* preset name */}
       <span style={{ fontSize: 11, fontWeight: 600, color: space.enabled ? (T.accent ?? "#E8A23C") : T.textPrimary, lineHeight: 1 }}>
         {spaceMeta.label}
       </span>
-
-      {/* 中间：迷你品格轨道 */}
-      <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "2px 0" }}>
-        <div style={{ width: "85%", height: 8, borderRadius: 4, background: "rgba(255,255,255,0.06)", position: "relative" }}>
-          {/* 品格线标记 */}
-          {[0, 3, 5, 7, 9, 12].map(fret => (
-            <div key={fret} style={{
-              position: "absolute", left: `${(fret / 12) * 100}%`,
-              top: 0, bottom: 0, width: "0.5px",
-              background: "rgba(255,255,255,0.15)",
-            }} />
-          ))}
-          {/* 激活区域 */}
-          <div style={{
-            position: "absolute", top: 0, bottom: 0,
-            left: `${(space.fretRange.min / 12) * 100}%`,
-            width: `${((space.fretRange.max - space.fretRange.min) / 12) * 100}%`,
-            background: T.accent ?? "#E8A23C", opacity: 0.4, borderRadius: 4,
-            transition: "left 0.2s, width 0.2s",
-          }} />
-        </div>
-      </div>
-
-      {/* 底部：fretRange 数字 */}
+      {/* fret range */}
       <span style={{ fontSize: 10, color: T.textTertiary, lineHeight: 1 }}>
         {space.fretRange.min}–{space.fretRange.max}
       </span>
@@ -758,20 +1034,21 @@ function FlowChip({ flow, onSelect, onLongPress }) {
         whileTap={{ scale: 0.96 }}
         style={{
           width: "100%", height: "100%",
-          borderRadius: 14,
+          borderRadius: 12,
           background: T.surface2 ?? "rgba(255,255,255,0.06)",
           border: `0.5px solid ${flow.enabled ? (T.accentBorder ?? "rgba(232,162,60,0.35)") : (T.border ?? "rgba(255,255,255,0.1)")}`,
           display: "flex", flexDirection: "column",
           alignItems: "center", justifyContent: "center",
-          gap: 4, cursor: "pointer",
+          gap: 5, cursor: "pointer",
           userSelect: "none", WebkitUserSelect: "none",
+          padding: "10px 12px",
         }}
       >
-        <ControlIcon icon="flow" size={20} color={flow.enabled ? (T.accent ?? "#E8A23C") : (T.textSecondary ?? "rgba(255,255,255,0.55)")} />
-        <span style={{ fontSize: 14, fontWeight: 700, color: flow.enabled ? (T.accent ?? "#E8A23C") : T.textPrimary, lineHeight: 1 }}>
+        <FlowIcon flow={flow} size={26} accentColor={flow.enabled ? (T.accent ?? "#E8A23C") : "rgba(255,255,255,0.35)"} />
+        <span style={{ fontSize: 11, fontWeight: 600, color: flow.enabled ? (T.accent ?? "#E8A23C") : T.textPrimary, lineHeight: 1 }}>
           {flowMeta.label}
         </span>
-        <span style={{ fontSize: 11, color: T.textTertiary, lineHeight: 1 }}>tap to change</span>
+        <span style={{ fontSize: 10, color: T.textTertiary, lineHeight: 1 }}>tap to change</span>
       </motion.div>
 
       {/* Dropdown list — iOS 专注模式风格 */}
@@ -881,18 +1158,16 @@ function ControlCenter({
     <AnimatePresence>
       {open && (
         <>
-          {/* Backdrop */}
+          {/* Backdrop — no blur, L0 already handles scale+blur */}
           <motion.div
             key="cc-backdrop"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            transition={{ duration: 0.18 }}
+            transition={{ duration: 0.15 }}
             onClick={onClose}
             style={{
               position: "fixed", inset: 0,
-              background: "rgba(0,0,0,0.45)",
-              backdropFilter: "blur(14px)",
-              WebkitBackdropFilter: "blur(14px)",
-              zIndex: 100,
+              background: "rgba(0,0,0,0.25)",
+              zIndex: 149,
             }}
           />
 
@@ -911,7 +1186,7 @@ function ControlCenter({
             onMouseUp={onPanelMouseUp}
             style={{
               position: "fixed", bottom: 0, left: 0, right: 0,
-              height: "54%",
+              height: "56%",
               borderTopLeftRadius: 26, borderTopRightRadius: 26,
               background: "rgba(22,22,26,0.96)",
               backdropFilter: "blur(28px)",
@@ -919,9 +1194,9 @@ function ControlCenter({
               border: `0.5px solid ${T.border ?? "rgba(255,255,255,0.1)"}`,
               borderBottom: "none",
               boxShadow: "0 -2px 40px rgba(0,0,0,0.55)",
-              zIndex: 101,
+              zIndex: 150,
               display: "flex", flexDirection: "column",
-              paddingBottom: "max(20px, env(safe-area-inset-bottom))",
+              paddingBottom: "calc(max(16px, env(safe-area-inset-bottom)) + 68px)",
               userSelect: "none", WebkitUserSelect: "none",
               overflow: "visible",
             }}
@@ -952,19 +1227,19 @@ function ControlCenter({
                     cards={MODE_CARDS}
                     activeId={contentMode}
                     onSelect={id => { if (id !== contentMode) onCycleMode(id); }}
+                    cardHeight={68}
                     renderCard={(card, isActive) => (
                       <motion.div whileTap={{ scale: 0.96 }} style={{
-                        height: 62,
-                        padding: "8px 10px", borderRadius: 16,
+                        height: 68,
+                        padding: "10px 10px", borderRadius: 12,
                         background: isActive ? (T.accentSub ?? "rgba(232,162,60,0.1)") : (T.surface2 ?? "rgba(255,255,255,0.06)"),
-                        border: `1px solid ${isActive ? (T.accentBorder ?? "rgba(232,162,60,0.35)") : (T.border ?? "rgba(255,255,255,0.1)")}`,
+                        border: `0.5px solid ${isActive ? (T.accentBorder ?? "rgba(232,162,60,0.35)") : (T.border ?? "rgba(255,255,255,0.1)")}`,
                         display: "flex", flexDirection: "column",
-                        alignItems: "center", justifyContent: "center", gap: 3,
+                        alignItems: "center", justifyContent: "center", gap: 5,
                         overflow: "hidden",
                       }}>
-                        <ModeIcon mode={card.id} size={20} color={isActive ? (T.accent ?? "#E8A23C") : (T.textSecondary ?? "rgba(255,255,255,0.55)")} />
-                        <span style={{ fontSize: 10, fontWeight: 600, color: isActive ? (T.accent ?? "#E8A23C") : T.textPrimary, lineHeight: 1 }}>{card.label}</span>
-                        <span style={{ fontSize: 8, color: T.textTertiary, lineHeight: 1 }}>{card.sublabel}</span>
+                        <ModeIcon mode={card.id} size={22} color={isActive ? (T.accent ?? "#E8A23C") : (T.textSecondary ?? "rgba(255,255,255,0.55)")} />
+                        <span style={{ fontSize: 11, fontWeight: 600, color: isActive ? (T.accent ?? "#E8A23C") : T.textPrimary, lineHeight: 1 }}>{card.label}</span>
                       </motion.div>
                     )}
                   />
@@ -1011,25 +1286,25 @@ function ControlCenter({
                       if (id === "custom") { onClose(); setTimeout(onEditIntervals, 80); }
                       else if (p) onSetIntervalPreset(id, p.intervals);
                     }}
+                    cardHeight={68}
                     renderCard={(card, isActive) => (
                       <motion.div whileTap={{ scale: 0.96 }} style={{
-                        height: 62,
-                        padding: "8px 10px", borderRadius: 16,
+                        height: 68,
+                        padding: "10px 10px", borderRadius: 12,
                         background: isActive ? (T.accentSub ?? "rgba(232,162,60,0.1)") : (T.surface2 ?? "rgba(255,255,255,0.06)"),
-                        border: `1px solid ${isActive ? (T.accentBorder ?? "rgba(232,162,60,0.35)") : (T.border ?? "rgba(255,255,255,0.1)")}`,
+                        border: `0.5px solid ${isActive ? (T.accentBorder ?? "rgba(232,162,60,0.35)") : (T.border ?? "rgba(255,255,255,0.1)")}`,
                         display: "flex", flexDirection: "column",
-                        alignItems: "center", justifyContent: "center", gap: 3,
+                        alignItems: "center", justifyContent: "center", gap: 5,
                         overflow: "hidden",
                       }}>
-                        <svg width="20" height="20" viewBox="0 0 22 22" fill="none"
+                        <svg width="22" height="22" viewBox="0 0 22 22" fill="none"
                           stroke={isActive ? (T.accent ?? "#E8A23C") : (T.textSecondary ?? "rgba(255,255,255,0.55)")}
                           strokeWidth="1.5" strokeLinecap="round">
                           <circle cx="6" cy="11" r="2.5" fill={isActive ? (T.accent ?? "#E8A23C") : (T.textSecondary ?? "rgba(255,255,255,0.55)")} stroke="none" />
                           <circle cx="16" cy="11" r="2.5" />
                           <path d="M8.5 10 Q11 6.5 13.5 10" />
                         </svg>
-                        <span style={{ fontSize: 10, fontWeight: 600, color: isActive ? (T.accent ?? "#E8A23C") : T.textPrimary, lineHeight: 1 }}>{card.label}</span>
-                        <span style={{ fontSize: 8, color: T.textTertiary, lineHeight: 1 }}>{card.sublabel}</span>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: isActive ? (T.accent ?? "#E8A23C") : T.textPrimary, lineHeight: 1 }}>{card.label}</span>
                       </motion.div>
                     )}
                   />
@@ -2092,111 +2367,36 @@ export function IntervalTrainer({ settings, onSettings, audioEnabled, setAudioEn
   // ── 公共内容块（手机/平板/PC 共用）──────────────────────────
   const TopBar = (
     <div style={{
-      height: 48,
+      height: 50,
       display: "flex",
       alignItems: "center",
       justifyContent: "space-between",
-      paddingLeft: 16, paddingRight: 16,
+      paddingLeft: 18, paddingRight: 14,
       flexShrink: 0,
     }}>
-      <div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
         <div style={{ fontSize: 17, fontWeight: 700, lineHeight: 1, color: T.textPrimary, fontFamily: FONT_DISPLAY, letterSpacing: -0.3 }}>
           Intervals
         </div>
-        <div style={{ fontSize: 10, color: T.textTertiary, marginTop: 2, fontFamily: FONT_TEXT, letterSpacing: 0.2 }}>
-          {{ learning: "Visual mode", blind: "Blind mode", rootFirst: "Root first", coreDrill: "Core drill" }[contentMode] ?? contentMode}
+        <div style={{
+          fontSize: 10, color: T.textTertiary, fontFamily: FONT_TEXT, letterSpacing: 0.2,
+          background: T.surface2, border: `0.5px solid ${T.border}`,
+          borderRadius: 6, padding: "2px 7px", lineHeight: 1.6,
+        }}>
+          {{ learning: "Visual", blind: "Blind", rootFirst: "Root 1st", coreDrill: "Core Drill" }[contentMode] ?? contentMode}
         </div>
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
         <MicButton
           enabled={audioEnabled}
           rms={rms}
           status={status}
           onToggle={() => setAudioEnabled?.(v => !v)}
         />
-        {/* Stats Button - 按 v5.1 7 */}
-        <motion.button
-          onClick={() => setShowStats(true)}
-          whileTap={{ scale: 0.88 }}
-          transition={SPRINGS.tap}
-          style={{
-            width: 34, height: 34, borderRadius: 10,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            cursor: "pointer",
-            border: `0.5px solid ${T.border ?? "rgba(255,255,255,0.1)"}`,
-            background: T.surface2 ?? "rgba(255,255,255,0.06)",
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.textSecondary ?? "rgba(255,255,255,0.55)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="6" y1="20" x2="6" y2="10"/>
-            <line x1="12" y1="20" x2="12" y2="4"/>
-            <line x1="18" y1="20" x2="18" y2="14"/>
-          </svg>
-        </motion.button>
-        <AnimatePresence>
-          {streak > 0 && (
-            <motion.div key="streak"
-              initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }}
-              transition={SPRINGS.correct}
-              style={{ padding: "3px 8px", borderRadius: 10, fontSize: 11, fontWeight: 700, background: "rgba(232,162,60,0.14)", color: T.accent ?? "#E8A23C", border: `0.5px solid ${T.accentBorder ?? "rgba(232,162,60,0.35)"}`, display: "flex", alignItems: "center", gap: 3, fontFamily: FONT_MONO }}>
-              <svg width="10" height="12" viewBox="0 0 10 12" fill="currentColor">
-                <path d="M5 0C5 0 8 3 8 5.5C8 7.5 6.8 9 5 9C3.2 9 2 7.5 2 5.5C2 3 5 0 5 0Z" opacity="0.9"/>
-                <path d="M5 6C5 6 6.5 7 6.5 8C6.5 9 5.8 10 5 10C4.2 10 3.5 9 3.5 8C3.5 7 5 6 5 6Z" opacity="0.55"/>
-              </svg>
-              {streak}
-            </motion.div>
-          )}
-        </AnimatePresence>
-        {score.total > 0 && (
-          <div style={{ fontSize: 11, color: T.textTertiary, fontFamily: FONT_MONO }}>
-            {Math.round((score.correct / score.total) * 100)}%
-          </div>
-        )}
-        {/* Theme Toggle */}
-        <motion.button
-          onClick={() => themeCtx?.toggle?.()}
-          whileTap={{ scale: 0.88 }}
-          transition={SPRINGS.tap}
-          style={{
-            width: 30, height: 30, borderRadius: 10,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            cursor: "pointer",
-            border: `0.5px solid ${T.border ?? "rgba(255,255,255,0.1)"}`,
-            background: T.surface2 ?? "rgba(255,255,255,0.06)",
-          }}
-        >
-          {isDark ? (
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.textSecondary ?? "rgba(255,255,255,0.55)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="4"/>
-              <line x1="12" y1="2" x2="12" y2="4"/>
-              <line x1="12" y1="20" x2="12" y2="22"/>
-              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-            </svg>
-          ) : (
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.textSecondary ?? "rgba(255,255,255,0.55)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/>
-            </svg>
-          )}
-        </motion.button>
-        {/* Global Settings */}
-        <motion.button
-          onClick={() => setShowGlobalSettings(true)}
-          whileTap={{ scale: 0.88 }}
-          transition={SPRINGS.tap}
-          style={{
-            width: 30, height: 30, borderRadius: 10,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            cursor: "pointer",
-            border: `0.5px solid ${T.border ?? "rgba(255,255,255,0.1)"}`,
-            background: T.surface2 ?? "rgba(255,255,255,0.06)",
-          }}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.textSecondary ?? "rgba(255,255,255,0.55)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="3"/>
-            <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83l-.06.06a2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
-          </svg>
-        </motion.button>
+        {/* Theme Toggle — animated icon tap sequence (UseAnimations pattern) */}
+        <ThemeToggleBtn isDark={isDark} onToggle={() => themeCtx?.toggle?.()} T={T} />
+        {/* Settings — gear spin on tap */}
+        <SettingsBtn onOpen={() => setShowGlobalSettings(true)} T={T} />
       </div>
     </div>
   );
@@ -2204,8 +2404,25 @@ export function IntervalTrainer({ settings, onSettings, audioEnabled, setAudioEn
   const FocusArea = (
     <>
       <FindModeCapsules findMode={findMode} onSelect={setFindMode} />
-      <div style={{ paddingLeft: 12, paddingRight: 12, flexShrink: 0 }}>
-        <GlassCard style={{ height: "max(140px, 22dvh)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "12px 20px", textAlign: "center", position: "relative", overflow: "hidden" }}>
+      <div style={{ paddingLeft: 14, paddingRight: 14, flexShrink: 0 }}>
+        <GlassCard style={{
+          height: "max(164px, 26dvh)",
+          display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center",
+          padding: "16px 24px", textAlign: "center",
+          position: "relative", overflow: "hidden",
+          // ── Cult UI ShiftCard dark shadow pattern ──
+          // multi-layer: inset rim light + ambient depth cascade
+          boxShadow: [
+            "0 1px 0 0 rgba(255,255,255,0.04) inset",
+            "0 0 0 1px rgba(255,255,255,0.04) inset",
+            "0 0 0 1px rgba(0,0,0,0.18)",
+            "0 2px 2px 0 rgba(0,0,0,0.14)",
+            "0 4px 4px 0 rgba(0,0,0,0.12)",
+            "0 8px 16px 0 rgba(0,0,0,0.10)",
+            "0 16px 32px 0 rgba(0,0,0,0.07)",
+          ].join(", "),
+        }}>
           <motion.div
             key={(question?.intervalIdx ?? "none") + "-" + (question?.rootStr ?? "x") + "-" + findMode + "-" + stage}
             initial={{ scale: 0.85, opacity: 0, filter: "blur(6px)" }}
@@ -2225,61 +2442,98 @@ export function IntervalTrainer({ settings, onSettings, audioEnabled, setAudioEn
         </GlassCard>
       </div>
 
-      {/* PositionStrip - 按 v5.1 1.3 */}
-      {question && (
-        <div style={{
-          height: 18, marginHorizontal: 12,
-          background: T.surface2,
-          borderRadius: 6,
-          border: `0.5px solid ${T.border}`,
-          display: "flex", alignItems: "center",
-          padding: "0 12px",
-          gap: 8,
-          flexShrink: 0,
-        }}>
-          {/* 12格轨道 */}
-          <div style={{ flex: 1, height: 5, borderRadius: 2.5, background: "rgba(255,255,255,0.06)", position: "relative" }}>
-            {/* 视窗区域高亮 */}
-            <div style={{
-              position: "absolute", top: 0, height: "100%",
-              left: `${(Math.max(0, Math.min(viewportCenter - 2, 7)) / 12) * 100}%`,
-              width: `${(5 / 12) * 100}%`,
-              borderRadius: 2.5,
-              background: T.accent, opacity: 0.25,
-              border: `0.5px solid ${T.accentBorder}`,
-              transition: "left 0.35s cubic-bezier(0.34,1.56,0.64,1)",
-            }}/>
-            {/* 根音点 */}
-            <div style={{
-              position: "absolute", top: "50%", transform: "translate(-50%, -50%)",
-              left: `${(question.rootFret / 12) * 100}%`,
-              width: 7, height: 7, borderRadius: "50%",
-              background: "#E8A23C",
-              boxShadow: "0 0 4px rgba(232,162,60,0.4)",
-            }}/>
-            {/* 目标点 */}
-            <div style={{
-              position: "absolute", top: "50%", transform: "translate(-50%, -50%)",
-              left: `${(question.targetFret / 12) * 100}%`,
-              width: 7, height: 7, borderRadius: "50%",
-              background: T.accent, opacity: 0.9,
-            }}/>
-            {/* 把位标记点 (3/5/7/9) */}
-            {[3, 5, 7, 9].map(f => (
-              <div key={f} style={{
-                position: "absolute", bottom: "-3px", transform: "translateX(-50%)",
-                left: `${(f / 12) * 100}%`,
-                width: 3, height: 3, borderRadius: "50%",
-                background: "rgba(255,255,255,0.2)",
+      {/* PositionStrip — 重建为品格导航器 */}
+      {question && (() => {
+        const vpStart = Math.max(0, Math.min(viewportCenter - 2, 7));
+        const vpEnd   = vpStart + 4;
+        return (
+          <div style={{
+            flexShrink: 0,
+            margin: "6px 14px 2px",
+            background: T.surface2,
+            borderRadius: 10,
+            border: `0.5px solid ${T.border}`,
+            padding: "8px 12px",
+            display: "flex", flexDirection: "column", gap: 5,
+          }}>
+            {/* 上行：品格轨道 */}
+            <div style={{ position: "relative", height: 10, borderRadius: 5, background: "rgba(255,255,255,0.05)" }}>
+              {/* 把位标记点 (3/5/7/9/12) — 在轨道下方 */}
+              {[3, 5, 7, 9, 12].map(f => (
+                <div key={f} style={{
+                  position: "absolute", top: "50%", transform: "translate(-50%, -50%)",
+                  left: `${(f / 12) * 100}%`,
+                  width: 3, height: 3, borderRadius: "50%",
+                  background: "rgba(255,255,255,0.18)",
+                  pointerEvents: "none",
+                }}/>
+              ))}
+              {/* 视窗高亮区 */}
+              <div style={{
+                position: "absolute", top: 0, bottom: 0,
+                left: `${(vpStart / 12) * 100}%`,
+                width: `${(5 / 12) * 100}%`,
+                borderRadius: 5,
+                background: T.accent,
+                opacity: 0.18,
+                border: `0.5px solid ${T.accentBorder}`,
+                transition: "left 0.38s cubic-bezier(0.34,1.56,0.64,1)",
               }}/>
-            ))}
+              {/* 根音点 */}
+              <div style={{
+                position: "absolute", top: "50%", transform: "translate(-50%, -50%)",
+                left: `${(question.rootFret / 12) * 100}%`,
+                width: 10, height: 10, borderRadius: "50%",
+                background: T.noteRoot ?? "#C99A50",
+                border: "1.5px solid rgba(0,0,0,0.35)",
+                boxShadow: `0 0 6px ${T.noteRootGlow ?? "rgba(201,154,80,0.4)"}`,
+                transition: "left 0.25s cubic-bezier(0.34,1.56,0.64,1)",
+              }}/>
+              {/* 目标点 */}
+              <div style={{
+                position: "absolute", top: "50%", transform: "translate(-50%, -50%)",
+                left: `${(question.targetFret / 12) * 100}%`,
+                width: 10, height: 10, borderRadius: "50%",
+                background: T.noteTarget ?? "#3CC9B5",
+                border: "1.5px solid rgba(0,0,0,0.35)",
+                boxShadow: `0 0 6px ${T.noteTargetGlow ?? "rgba(60,201,181,0.3)"}`,
+                transition: "left 0.25s cubic-bezier(0.34,1.56,0.64,1)",
+              }}/>
+            </div>
+            {/* 下行：品格数字刻度 + 视窗标注 */}
+            <div style={{ display: "flex", alignItems: "center", position: "relative", height: 12 }}>
+              {[0, 3, 5, 7, 9, 12].map(f => (
+                <span key={f} style={{
+                  position: "absolute",
+                  left: `${(f / 12) * 100}%`,
+                  transform: "translateX(-50%)",
+                  fontSize: 9,
+                  fontFamily: FONT_MONO,
+                  color: "rgba(255,255,255,0.2)",
+                  lineHeight: 1,
+                }}>
+                  {f}
+                </span>
+              ))}
+              {/* 视窗标注 — 浮在当前视口位置 */}
+              <span style={{
+                position: "absolute",
+                left: `${((vpStart + 2) / 12) * 100}%`,
+                transform: "translateX(-50%)",
+                fontSize: 9,
+                fontFamily: FONT_MONO,
+                fontWeight: 600,
+                color: T.accent,
+                letterSpacing: 0.2,
+                transition: "left 0.38s cubic-bezier(0.34,1.56,0.64,1)",
+                pointerEvents: "none",
+              }}>
+                {vpStart}–{vpEnd}
+              </span>
+            </div>
           </div>
-          {/* 当前视窗范围 */}
-          <span style={{ fontSize: 10, color: T.textTertiary, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
-            {Math.max(0, Math.min(viewportCenter - 2, 7))}–{Math.max(0, Math.min(viewportCenter - 2, 7)) + 4}
-          </span>
-        </div>
-      )}
+        );
+      })()}
 
       <AnimatePresence>
         {vocPrompt && (
@@ -2302,7 +2556,7 @@ export function IntervalTrainer({ settings, onSettings, audioEnabled, setAudioEn
   );
 
   const FretboardArea = (
-    <div style={{ flex: 1, minHeight: 0, padding: "8px 0", display: "flex", flexDirection: "column" }}
+    <div style={{ flex: 1, minHeight: 0, padding: "4px 14px 8px", display: "flex", flexDirection: "column" }}
       onTouchStart={e => { fbStartYRef.current = e.touches[0].clientY; }}
       onTouchEnd={e => {
         if (fbStartYRef.current !== null) {
@@ -2327,9 +2581,9 @@ export function IntervalTrainer({ settings, onSettings, audioEnabled, setAudioEn
               paddingTop: 12,
               paddingBottom: 16,
               paddingLeft: 8,
-              background: "rgba(18,18,26,1)",
-              borderRadius: 12,
-              border: "0.5px solid rgba(255,255,255,0.05)",
+              background: "rgba(16,16,22,1)",
+              borderRadius: 16,
+              border: "0.5px solid rgba(255,255,255,0.07)",
             }}
           />
         </motion.div>
@@ -2460,11 +2714,11 @@ export function IntervalTrainer({ settings, onSettings, audioEnabled, setAudioEn
                 <VerticalCardStack
                   cards={MODE_CARDS} activeId={contentMode}
                   onSelect={id => { if (id !== contentMode) handleCycleMode(id); }}
+                  cardHeight={68}
                   renderCard={(card, isActive) => (
-                    <motion.div whileTap={{ scale: 0.96 }} style={{ height: 62, padding: "8px 10px", borderRadius: 16, background: isActive ? (T.accentSub ?? "rgba(232,162,60,0.1)") : (T.surface2 ?? "rgba(255,255,255,0.06)"), border: `1px solid ${isActive ? (T.accentBorder ?? "rgba(232,162,60,0.35)") : (T.border ?? "rgba(255,255,255,0.1)")}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, overflow: "hidden" }}>
-                      <ModeIcon mode={card.id} size={20} color={isActive ? (T.accent ?? "#E8A23C") : (T.textSecondary ?? "rgba(255,255,255,0.55)")} />
-                      <span style={{ fontSize: 10, fontWeight: 600, color: isActive ? (T.accent ?? "#E8A23C") : T.textPrimary, lineHeight: 1 }}>{card.label}</span>
-                      <span style={{ fontSize: 8, color: T.textTertiary, lineHeight: 1 }}>{card.sublabel}</span>
+                    <motion.div whileTap={{ scale: 0.96 }} style={{ height: 68, padding: "10px", borderRadius: 12, background: isActive ? (T.accentSub ?? "rgba(232,162,60,0.1)") : (T.surface2 ?? "rgba(255,255,255,0.06)"), border: `0.5px solid ${isActive ? (T.accentBorder ?? "rgba(232,162,60,0.35)") : (T.border ?? "rgba(255,255,255,0.1)")}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 5, overflow: "hidden" }}>
+                      <ModeIcon mode={card.id} size={22} color={isActive ? (T.accent ?? "#E8A23C") : (T.textSecondary ?? "rgba(255,255,255,0.55)")} />
+                      <span style={{ fontSize: 11, fontWeight: 600, color: isActive ? (T.accent ?? "#E8A23C") : T.textPrimary, lineHeight: 1 }}>{card.label}</span>
                     </motion.div>
                   )}
                 />
@@ -2477,15 +2731,15 @@ export function IntervalTrainer({ settings, onSettings, audioEnabled, setAudioEn
                     if (id === "custom") setShowIVEditor(true);
                     else if (p) { setIntervalPreset(id); setSelectedIntervals(p.intervals); }
                   }}
+                  cardHeight={68}
                   renderCard={(card, isActive) => (
-                    <motion.div whileTap={{ scale: 0.96 }} style={{ height: 62, padding: "8px 10px", borderRadius: 16, background: isActive ? (T.accentSub ?? "rgba(232,162,60,0.1)") : (T.surface2 ?? "rgba(255,255,255,0.06)"), border: `1px solid ${isActive ? (T.accentBorder ?? "rgba(232,162,60,0.35)") : (T.border ?? "rgba(255,255,255,0.1)")}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, overflow: "hidden" }}>
-                      <svg width="20" height="20" viewBox="0 0 22 22" fill="none" stroke={isActive ? (T.accent ?? "#E8A23C") : (T.textSecondary ?? "rgba(255,255,255,0.55)")} strokeWidth="1.5" strokeLinecap="round">
+                    <motion.div whileTap={{ scale: 0.96 }} style={{ height: 68, padding: "10px", borderRadius: 12, background: isActive ? (T.accentSub ?? "rgba(232,162,60,0.1)") : (T.surface2 ?? "rgba(255,255,255,0.06)"), border: `0.5px solid ${isActive ? (T.accentBorder ?? "rgba(232,162,60,0.35)") : (T.border ?? "rgba(255,255,255,0.1)")}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 5, overflow: "hidden" }}>
+                      <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke={isActive ? (T.accent ?? "#E8A23C") : (T.textSecondary ?? "rgba(255,255,255,0.55)")} strokeWidth="1.5" strokeLinecap="round">
                         <circle cx="6" cy="11" r="2.5" fill={isActive ? (T.accent ?? "#E8A23C") : (T.textSecondary ?? "rgba(255,255,255,0.55)")} stroke="none" />
                         <circle cx="16" cy="11" r="2.5" />
                         <path d="M8.5 10 Q11 6.5 13.5 10" />
                       </svg>
-                      <span style={{ fontSize: 10, fontWeight: 600, color: isActive ? (T.accent ?? "#E8A23C") : T.textPrimary, lineHeight: 1 }}>{card.label}</span>
-                      <span style={{ fontSize: 8, color: T.textTertiary, lineHeight: 1 }}>{card.sublabel}</span>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: isActive ? (T.accent ?? "#E8A23C") : T.textPrimary, lineHeight: 1 }}>{card.label}</span>
                     </motion.div>
                   )}
                 />
@@ -2608,14 +2862,12 @@ export function IntervalTrainer({ settings, onSettings, audioEnabled, setAudioEn
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                transition={{ duration: 0.18 }}
+                transition={{ duration: 0.15 }}
                 onClick={() => setShowCC(false)}
                 style={{
                   position: "fixed", inset: 0,
-                  background: "rgba(0,0,0,0.4)",
-                  backdropFilter: "blur(8px)",
-                  WebkitBackdropFilter: "blur(8px)",
-                  zIndex: 110,
+                  background: "rgba(0,0,0,0.25)",
+                  zIndex: 149,
                 }}
               />
               {/* 侧边栏 */}
@@ -2732,6 +2984,8 @@ export function IntervalTrainer({ settings, onSettings, audioEnabled, setAudioEn
           space={space} flow={flow}
           onOpen={() => setShowCC(true)}
           isOpen={showCC}
+          streak={streak}
+          score={score}
         />
       </motion.div>
       {Layers}
