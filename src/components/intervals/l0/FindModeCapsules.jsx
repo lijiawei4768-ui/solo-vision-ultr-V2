@@ -1,9 +1,11 @@
 // ─────────────────────────────────────────────────────────────
-// components/intervals/l0/FindModeCapsules.jsx
+// components/intervals/l0/FindModeCapsules.jsx  — Visual Correction
 //
-// L0 mode switcher — Find Root / Find Interval (LOCKED: 2 modes only)
-// Shared-layout spring sliding pill via Framer Motion layoutId.
-// Motion: allowed / top button micro-interaction
+// Changes vs Batch B:
+//   • marginTop 0 → 8px — clear breathing room below TopUtilityRail border
+//   • capsule height 36 → 34px — slightly more refined
+//   • active pill gets stronger accent border opacity 0.30→0.45
+//   • inactive label opacity: textSecondary → textTertiary for more contrast
 // ─────────────────────────────────────────────────────────────
 import React, { useContext } from 'react';
 import { motion } from 'framer-motion';
@@ -11,16 +13,14 @@ import { ThemeContext } from '../../../contexts';
 import { DT, FONT_TEXT } from '../../../theme';
 import { SPRINGS_IV } from '../../../motion/springs';
 import { RADIUS } from '../../../tokens/radius';
-import { SPACING } from '../../../tokens/spacing';
 
 function useT() {
   const ctx = useContext(ThemeContext);
   return ctx?.tokens ?? DT;
 }
 
-// LOCKED: exactly these two modes, no others
 const MODES = [
-  { id: 'findRoot',     label: 'Find Root'     },
+  { id: 'findRoot',     label: 'Find Root'    },
   { id: 'findInterval', label: 'Find Interval' },
 ];
 
@@ -29,11 +29,14 @@ export function FindModeCapsules({ activeMode, onModeChange }) {
 
   return (
     <div style={{
-      height:       SPACING.modeCapsuleHeightMobile,
-      margin:       '0 16px 6px',
+      height:       34,
+      marginTop:    8,    // ← FIX: breathing room below TopUtilityRail separator
+      marginBottom: 6,
+      marginLeft:   16,
+      marginRight:  16,
       borderRadius: RADIUS.pill,
-      background:   'rgba(255,255,255,0.05)',
-      border:       '0.5px solid rgba(255,255,255,0.08)',
+      background:   'rgba(255,255,255,0.04)',
+      border:       '0.5px solid rgba(255,255,255,0.07)',
       display:      'flex',
       padding:      3,
       flexShrink:   0,
@@ -60,7 +63,6 @@ export function FindModeCapsules({ activeMode, onModeChange }) {
             }}
           >
             {active && (
-              // Motion: allowed / top button micro-interaction (layoutId pill)
               <motion.div
                 layoutId="interval-mode-pill"
                 transition={SPRINGS_IV.pillSlide}
@@ -68,8 +70,8 @@ export function FindModeCapsules({ activeMode, onModeChange }) {
                   position:     'absolute',
                   inset:        0,
                   borderRadius: RADIUS.pill - 3,
-                  background:   'rgba(26,108,245,0.18)',
-                  border:       '0.5px solid rgba(26,108,245,0.30)',
+                  background:   'rgba(26,108,245,0.22)',
+                  border:       '0.5px solid rgba(26,108,245,0.45)', // ← stronger
                   zIndex:       -1,
                 }}
               />
@@ -79,11 +81,10 @@ export function FindModeCapsules({ activeMode, onModeChange }) {
               fontWeight:    active ? 600 : 400,
               color:         active
                 ? (T.accent ?? '#1A6CF5')
-                : (T.textSecondary ?? 'rgba(255,255,255,0.55)'),
+                : (T.textTertiary ?? 'rgba(255,255,255,0.38)'), // ← more recessed
               fontFamily:    FONT_TEXT,
               whiteSpace:    'nowrap',
               letterSpacing: '0.01em',
-              // Motion: color interpolation 200ms (not spring — just CSS transition)
               transition:    'color 0.2s',
             }}>
               {mode.label}

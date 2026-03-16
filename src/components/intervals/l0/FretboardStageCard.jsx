@@ -1,13 +1,13 @@
 // ─────────────────────────────────────────────────────────────
-// components/intervals/l0/FretboardStageCard.jsx
+// components/intervals/l0/FretboardStageCard.jsx — Visual Correction
 //
-// Wrapper-only. Provides the stage shell around FretboardViewport.
-// Layer structure (execution mother doc Part 4.1–4.2):
-//   Stage Shell → Stage Context Band → Inner Training Deck → FretboardViewport
-//   → Bottom Breathing Edge
-//
-// HEIGHT is locked to clamp (not flex:1).
-// Motion: allowed / fretboard viewport tracking (via FretboardViewport child)
+// Changes vs Batch B:
+//   • Shell gets visible border: 0.5px rgba(255,255,255,0.08)
+//   • Stage Context Band: left-aligned, with accent dot indicator,
+//     not just centred invisible text
+//   • Inner Training Deck: margin tighter, stronger contrast,
+//     border opacity 0.05 → 0.08
+//   • Bottom Breathing Edge: 4→6px, slightly more visible
 // ─────────────────────────────────────────────────────────────
 import React from 'react';
 import { HEIGHT, SPACING } from '../../../tokens/spacing';
@@ -15,14 +15,6 @@ import { RADIUS } from '../../../tokens/radius';
 import { SHADOW } from '../../../tokens/elevation';
 import { FretboardViewport } from './FretboardViewport';
 
-/**
- * @param {{
- *   viewportMin:  number,
- *   viewportMax:  number,
- *   highlights:   array,
- *   onFretTap:    (string:number, fret:number) => void,
- * }} props
- */
 export function FretboardStageCard({
   viewportMin = 0,
   viewportMax = 4,
@@ -30,46 +22,71 @@ export function FretboardStageCard({
   onFretTap,
 }) {
   return (
-    // Stage Shell — LOCKED: r-14, bg rgba(14,14,20,1), inset vignette
     <div style={{
-      height:       HEIGHT.fretboardMobile, // clamp — initialSuggested
-      margin:       '0 16px',
-      borderRadius: RADIUS.stageShell,
-      background:   'rgba(14,14,20,1)',
-      boxShadow:    SHADOW.stageShellInset,
-      overflow:     'hidden',
-      flexShrink:   0,
-      display:      'flex',
+      height:        HEIGHT.fretboardMobile,
+      marginLeft:    16,
+      marginRight:   16,
+      borderRadius:  RADIUS.stageShell,
+      background:    'rgba(14,14,20,1)',
+      boxShadow:     SHADOW.stageShellInset,
+      // ← FIX: visible shell border for "contained stage" feel
+      border:        '0.5px solid rgba(255,255,255,0.08)',
+      overflow:      'hidden',
+      flexShrink:    0,
+      display:       'flex',
       flexDirection: 'column',
     }}>
-      {/* Stage Context Band — shows current fret window */}
+
+      {/* ── Stage Context Band ───────────────────────────── */}
+      {/* FIX: left-aligned with accent dot — not invisible centred text */}
       <div style={{
-        height:          24,
+        height:          22,
         flexShrink:      0,
         display:         'flex',
         alignItems:      'center',
-        justifyContent:  'center',
-        paddingTop:      4,
+        paddingLeft:     12,
+        paddingRight:    12,
+        gap:             6,
+        borderBottom:    '0.5px solid rgba(255,255,255,0.05)',
       }}>
+        <div style={{
+          width:        3,
+          height:       3,
+          borderRadius: '50%',
+          background:   'rgba(255,255,255,0.25)',
+          flexShrink:   0,
+        }} />
+        <span style={{
+          fontSize:           9,
+          fontWeight:         400,
+          color:              'rgba(255,255,255,0.30)',
+          letterSpacing:      '0.08em',
+          textTransform:      'uppercase',
+          fontVariantNumeric: 'tabular-nums',
+          fontFamily:         '-apple-system, sans-serif',
+          flex:               1,
+        }}>
+          Frets {viewportMin} – {viewportMax}
+        </span>
+        {/* Right label: string range */}
         <span style={{
           fontSize:      9,
-          color:         'rgba(255,255,255,0.25)',
-          letterSpacing: '0.06em',
-          fontVariantNumeric: 'tabular-nums',
+          color:         'rgba(255,255,255,0.18)',
           fontFamily:    '-apple-system, sans-serif',
+          letterSpacing: '0.04em',
         }}>
-          FRETS {viewportMin} – {viewportMax}
+          E2 – e4
         </span>
       </div>
 
-      {/* Inner Training Deck — LOCKED: padding 12/16/8/8px, bg rgba(18,18,26,1) */}
+      {/* ── Inner Training Deck ──────────────────────────── */}
       <div style={{
         flex:         1,
         minHeight:    0,
-        margin:       '0 8px 8px',
+        margin:       '6px 7px 7px',
         borderRadius: RADIUS.innerDeck,
-        background:   'rgba(18,18,26,1)',
-        border:       '0.5px solid rgba(255,255,255,0.05)',
+        background:   'rgba(16,16,24,1)',   // slightly stronger contrast
+        border:       '0.5px solid rgba(255,255,255,0.08)', // ← more visible
         padding:      `${SPACING.fretDeckPadTop}px ${SPACING.fretDeckPadRight}px ${SPACING.fretDeckPadBottom}px ${SPACING.fretDeckPadLeft}px`,
         overflow:     'hidden',
         display:      'flex',
@@ -82,11 +99,11 @@ export function FretboardStageCard({
         />
       </div>
 
-      {/* Bottom Breathing Edge */}
+      {/* ── Bottom breathing edge ────────────────────────── */}
       <div style={{
-        height:     4,
+        height:     6,
         flexShrink: 0,
-        background: 'rgba(255,255,255,0.01)',
+        background: 'linear-gradient(to bottom, rgba(255,255,255,0.02), transparent)',
       }} />
     </div>
   );
