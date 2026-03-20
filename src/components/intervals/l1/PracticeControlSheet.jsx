@@ -1,201 +1,84 @@
-// components/intervals/l1/PracticeControlSheet.jsx  — Batch C v1
+// components/intervals/l1/PracticeControlSheet.jsx  — v3 "grows from bottom bar"
 //
-// L1 控制中心 Bottom Sheet.
-// 上划 BottomQuickStatusBar 或点击触发，展开高度约 60% 屏高。
-// 使用项目现有的 BottomSheet 组件作为外壳。
+// L1 = 轻量即时控制层
+// 从 BottomQuickStatusBar 向上生长，不是独立 modal/设置页
 //
-// 内容结构（上→下）：
-//   1. Mode        — Find Root / Find Interval 两个大按钮
-//   2. Intervals   — 11 个音程 chip 多选
-//   3. Space       — 4 个预设 chip + "Custom →" 入口（L2 预留）
-//   4. Flow        — 4 个预设 chip + "Custom →" 入口（L2 预留）
+// 视觉原则：
+//   - 面板底边贴住 BottomQuickStatusBar 上方，视觉上是底部控制基座的延伸
+//   - 不遮盖主舞台超过 50%（面板高度约 46–50vh）
+//   - 无 title/header，无关闭按钮 → 下滑/点外部 dismiss
+//   - 背景：L0 scale(0.96)+blur(4px)，面板区域 backdrop blur
+//   - 内容紧凑：Mode 2颗 pill / Intervals mini chips / Space 4格 / Flow 4格
 //
-// 视觉语言延续 V7b：
-//   dark:  border 0.5px rgba(255,255,255,0.xx)，文字 rgba(235,235,245,...)
-//   light: 白底卡片，文字 rgba(0,0,0,...)
-//
-// L2 hooks 预留：onOpenSpaceL2 / onOpenFlowL2 / onOpenIntervalsL2
-// Batch C 交付只做 L1，L2 仅显示 "→ 深度设置" 文字按钮，点击暂无动作。
+// 触发进入 L2：长按对应区域（由父 IntervalsTrainer 处理 onLongPress）
 
-import React, { useContext, useCallback } from 'react';
-import { motion } from 'framer-motion';
-import { ThemeContext } from '../../../contexts';
-import { DT, FONT_TEXT, FONT_MONO, FONT_DISPLAY } from '../../../theme';
-import { INTERVAL_LABELS } from '../../../constants';
-import { BottomSheet } from '../../ui';
-import { SPRINGS_IV } from '../../../motion/springs';
+import React, { useContext } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ThemeContext }        from '../../../contexts';
+import { FONT_TEXT, FONT_MONO } from '../../../theme';
+import { SPRINGS_IV }          from '../../../motion/springs';
+import { INTERVAL_LABELS }     from '../../../constants';
 
 function useIsDark() { return (useContext(ThemeContext)?.dark) ?? true; }
 
-// 11 个可训练音程（跳过 R）
-const INTERVAL_ITEMS = INTERVAL_LABELS.filter(l => l !== 'R');
+const ALL_INTERVALS = INTERVAL_LABELS.filter(l => l !== 'R');
 
-// 音程中文注释（显示在 chip 下方，tiny label）
-const INTERVAL_SUBLABELS = {
-  'b2': '小2', '2': '大2', 'b3': '小3', '3': '大3',
-  '4':  '纯4', 'b5': '减5', '5': '纯5',
-  'b6': '小6', '6': '大6', 'b7': '小7', '7': '大7',
-};
+// ── Shared token helpers ─────────────────────────────────────
+const t = (isDark, a = 0.88) =>
+  isDark ? `rgba(235,235,245,${a})` : `rgba(0,0,0,${a})`;
 
-const SPACE_PRESETS = [
-  { id: 'full',  label: 'Full',   sublabel: '全部品位' },
-  { id: 'open',  label: 'Open',   sublabel: '0–4 品'  },
-  { id: 'low',   label: 'Low',    sublabel: '3–7 品'  },
-  { id: 'mid',   label: 'Mid',    sublabel: '5–9 品'  },
-];
-
-const FLOW_PRESETS = [
-  { id: 'free',   label: 'Free',   sublabel: '自由节奏'  },
-  { id: 'slow',   label: 'Slow',   sublabel: '慢练模式'  },
-  { id: 'burst',  label: 'Burst',  sublabel: '连续闯关'  },
-  { id: 'random', label: 'Random', sublabel: '随机顺序'  },
-];
-
-// ── Section wrapper ──────────────────────────────────────────
-function Section({ label, isDark, children, onDeepDive }) {
-  const labelColor  = isDark ? 'rgba(235,235,245,0.36)' : 'rgba(0,0,0,0.38)';
-  const deepColor   = isDark ? 'rgba(235,235,245,0.28)' : 'rgba(0,0,0,0.30)';
-
+// ── Section label ────────────────────────────────────────────
+function SectionLabel({ children, onLongPress, isDark }) {
   return (
-    <div style={{ marginBottom: 20 }}>
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        marginBottom: 10,
-      }}>
-        <span style={{
-          fontSize: 11, fontWeight: 600, color: labelColor,
-          fontFamily: FONT_TEXT, letterSpacing: '0.08em', textTransform: 'uppercase',
-        }}>
-          {label}
-        </span>
-        {onDeepDive && (
-          <span
-            onClick={onDeepDive}
-            style={{
-              fontSize: 11, fontWeight: 500, color: deepColor,
-              fontFamily: FONT_TEXT, cursor: 'pointer',
-              letterSpacing: '0.02em',
-            }}
-          >
-            深度设置 →
-          </span>
-        )}
-      </div>
+    <div
+      onContextMenu={e => { e.preventDefault(); onLongPress?.(); }}
+      style={{
+        fontSize: 8.5, fontWeight: 600,
+        color: t(isDark, 0.30),
+        fontFamily: FONT_TEXT,
+        letterSpacing: '0.09em',
+        textTransform: 'uppercase',
+        marginBottom: 6,
+        cursor: onLongPress ? 'context-menu' : 'default',
+      }}
+    >
       {children}
     </div>
   );
 }
 
-// ── Generic chip ─────────────────────────────────────────────
-function Chip({ label, sublabel, active, onClick, isDark, wide = false }) {
-  const activeBg    = isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.08)';
-  const inactiveBg  = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)';
-  const activeBorder= isDark ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.18)';
-  const idleBorder  = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
-  const textActive  = isDark ? 'rgba(235,235,245,0.92)' : 'rgba(0,0,0,0.82)';
-  const textIdle    = isDark ? 'rgba(235,235,245,0.44)' : 'rgba(0,0,0,0.44)';
-  const subActive   = isDark ? 'rgba(235,235,245,0.42)' : 'rgba(0,0,0,0.38)';
-  const subIdle     = isDark ? 'rgba(235,235,245,0.22)' : 'rgba(0,0,0,0.24)';
-
-  return (
-    <motion.button
-      onClick={onClick}
-      whileTap={{ scale: 0.94 }}
-      transition={SPRINGS_IV.buttonPress}
-      style={{
-        flex: wide ? 1 : 'none',
-        display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center',
-        gap: 2,
-        padding: sublabel ? '8px 6px' : '9px 12px',
-        borderRadius: 12,
-        background: active ? activeBg : inactiveBg,
-        border: `0.5px solid ${active ? activeBorder : idleBorder}`,
-        cursor: 'pointer',
-        boxShadow: active
-          ? (isDark ? 'inset 0 1px 0 rgba(255,255,255,0.08)' : '0 1px 3px rgba(0,0,0,0.07)')
-          : 'none',
-        minWidth: 52,
-      }}
-    >
-      <span style={{
-        fontSize: 13, fontWeight: active ? 600 : 400,
-        color: active ? textActive : textIdle,
-        fontFamily: FONT_MONO,
-        letterSpacing: '-0.01em',
-        lineHeight: 1,
-      }}>
-        {label}
-      </span>
-      {sublabel && (
-        <span style={{
-          fontSize: 9, fontWeight: 400,
-          color: active ? subActive : subIdle,
-          fontFamily: FONT_TEXT,
-          letterSpacing: '0.02em',
-          lineHeight: 1,
-        }}>
-          {sublabel}
-        </span>
-      )}
-    </motion.button>
-  );
-}
-
-// ── Mode toggle: two large buttons ───────────────────────────
-function ModeSection({ activeMode, onModeChange, isDark }) {
-  const activeBg    = isDark ? 'rgba(255,255,255,0.12)' : '#fff';
-  const inactiveBg  = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)';
-  const activeBorder= isDark ? 'rgba(255,255,255,0.20)' : 'rgba(0,0,0,0.12)';
-  const idleBorder  = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)';
-  const textActive  = isDark ? 'rgba(235,235,245,0.92)' : 'rgba(0,0,0,0.82)';
-  const textIdle    = isDark ? 'rgba(235,235,245,0.38)' : 'rgba(0,0,0,0.38)';
-
-  const modes = [
-    { id: 'findRoot',     label: 'Find Root',     desc: '听音程，找根音' },
-    { id: 'findInterval', label: 'Find Interval',  desc: '听根音，找音程' },
+// ── Mode ─────────────────────────────────────────────────────
+function ModeRow({ activeMode, onChange, isDark }) {
+  const opts = [
+    { id: 'findRoot',     label: 'Find Root' },
+    { id: 'findInterval', label: 'Find Interval' },
   ];
-
   return (
-    <div style={{ display: 'flex', gap: 8 }}>
-      {modes.map(m => {
-        const active = activeMode === m.id;
+    <div style={{ display: 'flex', gap: 6 }}>
+      {opts.map(o => {
+        const act = activeMode === o.id;
         return (
           <motion.button
-            key={m.id}
-            onClick={() => onModeChange(m.id)}
-            whileTap={{ scale: 0.96 }}
+            key={o.id}
+            onClick={() => onChange(o.id)}
+            whileTap={{ scale: 0.94 }}
             transition={SPRINGS_IV.buttonPress}
             style={{
-              flex: 1,
-              display: 'flex', flexDirection: 'column',
-              alignItems: 'flex-start',
-              padding: '12px 14px',
-              borderRadius: 14,
-              background: active ? activeBg : inactiveBg,
-              border: `0.5px solid ${active ? activeBorder : idleBorder}`,
-              cursor: 'pointer',
-              boxShadow: active
-                ? (isDark ? 'inset 0 1px 0 rgba(255,255,255,0.10), 0 2px 8px rgba(0,0,0,0.22)' : '0 1px 4px rgba(0,0,0,0.09)')
-                : 'none',
-              gap: 4,
+              flex: 1, padding: '8px 0', borderRadius: 11, cursor: 'pointer',
+              background: act
+                ? (isDark ? 'rgba(255,255,255,0.13)' : 'rgba(0,0,0,0.09)')
+                : (isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)'),
+              border: `0.5px solid ${act
+                ? (isDark ? 'rgba(255,255,255,0.20)' : 'rgba(0,0,0,0.14)')
+                : (isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)')}`,
             }}
           >
             <span style={{
-              fontSize: 14, fontWeight: active ? 600 : 400,
-              color: active ? textActive : textIdle,
-              fontFamily: FONT_TEXT, letterSpacing: '-0.01em',
-            }}>
-              {m.label}
-            </span>
-            <span style={{
-              fontSize: 10, fontWeight: 400,
-              color: isDark
-                ? (active ? 'rgba(235,235,245,0.42)' : 'rgba(235,235,245,0.20)')
-                : (active ? 'rgba(0,0,0,0.40)' : 'rgba(0,0,0,0.22)'),
+              fontSize: 12, fontWeight: act ? 600 : 400,
+              color: t(isDark, act ? 0.90 : 0.38),
               fontFamily: FONT_TEXT,
             }}>
-              {m.desc}
+              {o.label}
             </span>
           </motion.button>
         );
@@ -204,147 +87,221 @@ function ModeSection({ activeMode, onModeChange, isDark }) {
   );
 }
 
-// ── Intervals multi-select ────────────────────────────────────
-function IntervalsSection({ selectedIntervals, onToggleInterval, onSelectAll, isDark }) {
-  const allSelected = selectedIntervals.length === 0 || selectedIntervals.length === INTERVAL_ITEMS.length;
-
-  const allBtnBg  = isDark
-    ? (allSelected ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.04)')
-    : (allSelected ? 'rgba(0,0,0,0.07)' : 'rgba(0,0,0,0.03)');
-  const allBtnBorder = isDark
-    ? (allSelected ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.07)')
-    : (allSelected ? 'rgba(0,0,0,0.14)' : 'rgba(0,0,0,0.07)');
-  const allBtnText = isDark
-    ? (allSelected ? 'rgba(235,235,245,0.88)' : 'rgba(235,235,245,0.36)')
-    : (allSelected ? 'rgba(0,0,0,0.78)' : 'rgba(0,0,0,0.36)');
-
+// ── Intervals mini chips ─────────────────────────────────────
+function IntervalsRow({ selectedIntervals, onToggle, onSelectAll, isDark }) {
+  const allActive = selectedIntervals.length === 0;
   return (
-    <div>
-      {/* All 11 shortcut */}
+    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+      {/* All pill */}
       <motion.button
         onClick={onSelectAll}
-        whileTap={{ scale: 0.96 }}
+        whileTap={{ scale: 0.90 }}
         style={{
-          width: '100%', padding: '8px 12px', borderRadius: 12, marginBottom: 10,
-          background: allBtnBg, border: `0.5px solid ${allBtnBorder}`,
-          cursor: 'pointer', textAlign: 'left',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '4px 9px', borderRadius: 8, cursor: 'pointer',
+          background: allActive
+            ? (isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.09)')
+            : (isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)'),
+          border: `0.5px solid ${allActive
+            ? (isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.13)')
+            : (isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)')}`,
         }}
       >
-        <span style={{ fontSize: 13, fontWeight: allSelected ? 600 : 400, color: allBtnText, fontFamily: FONT_TEXT }}>
-          All 11
-        </span>
-        <span style={{ fontSize: 10, color: isDark ? 'rgba(235,235,245,0.28)' : 'rgba(0,0,0,0.30)', fontFamily: FONT_TEXT }}>
-          全部音程
+        <span style={{ fontSize: 11, fontWeight: allActive ? 600 : 400, color: t(isDark, allActive ? 0.88 : 0.36), fontFamily: FONT_MONO }}>
+          All
         </span>
       </motion.button>
 
-      {/* 11 interval chips: 4 per row */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(4, 1fr)',
-        gap: 6,
-      }}>
-        {INTERVAL_ITEMS.map(ivl => {
-          const active = selectedIntervals.length === 0 || selectedIntervals.includes(ivl);
-          return (
-            <Chip
-              key={ivl}
-              label={ivl}
-              sublabel={INTERVAL_SUBLABELS[ivl]}
-              active={active}
-              onClick={() => onToggleInterval(ivl)}
-              isDark={isDark}
-              wide
-            />
-          );
-        })}
-      </div>
+      {/* 11 interval mini chips */}
+      {ALL_INTERVALS.map(ivl => {
+        const act = allActive || selectedIntervals.includes(ivl);
+        return (
+          <motion.button
+            key={ivl}
+            onClick={() => onToggle(ivl)}
+            whileTap={{ scale: 0.88 }}
+            style={{
+              padding: '4px 6px', borderRadius: 7, cursor: 'pointer',
+              background: act
+                ? (isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.07)')
+                : (isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)'),
+              border: `0.5px solid ${act
+                ? (isDark ? 'rgba(255,255,255,0.16)' : 'rgba(0,0,0,0.12)')
+                : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)')}`,
+            }}
+          >
+            <span style={{ fontSize: 11, fontWeight: act ? 600 : 400, color: t(isDark, act ? 0.85 : 0.32), fontFamily: FONT_MONO }}>
+              {ivl}
+            </span>
+          </motion.button>
+        );
+      })}
     </div>
   );
 }
 
-// ── Main component ────────────────────────────────────────────
+// ── Space / Flow 2×2 chips ────────────────────────────────────
+function ChipGrid({ options, activeId, onChange, isDark }) {
+  return (
+    <div style={{ display: 'flex', gap: 5 }}>
+      {options.map(o => {
+        const act = activeId === o.id;
+        return (
+          <motion.button
+            key={o.id}
+            onClick={() => onChange(o.id)}
+            whileTap={{ scale: 0.92 }}
+            style={{
+              flex: 1, padding: '7px 4px', borderRadius: 10, cursor: 'pointer',
+              background: act
+                ? (isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.09)')
+                : (isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)'),
+              border: `0.5px solid ${act
+                ? (isDark ? 'rgba(255,255,255,0.19)' : 'rgba(0,0,0,0.14)')
+                : (isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)')}`,
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+            }}
+          >
+            <span style={{ fontSize: 12, fontWeight: act ? 600 : 400, color: t(isDark, act ? 0.90 : 0.40), fontFamily: FONT_MONO, lineHeight: 1 }}>
+              {o.label}
+            </span>
+            {o.sub && (
+              <span style={{ fontSize: 8, color: t(isDark, act ? 0.36 : 0.22), fontFamily: FONT_TEXT }}>
+                {o.sub}
+              </span>
+            )}
+          </motion.button>
+        );
+      })}
+    </div>
+  );
+}
+
+const SPACE_OPTS = [
+  { id: 'full', label: 'Full',  sub: '全指板' },
+  { id: 'pos1', label: '1–5',   sub: '低把' },
+  { id: 'pos5', label: '5–9',   sub: '中把' },
+  { id: 'ead',  label: 'EAD',   sub: 'E·A·D' },
+];
+const FLOW_OPTS = [
+  { id: 'free',     label: 'Free',  sub: '自由' },
+  { id: 'low-high', label: '↑',     sub: '低→高' },
+  { id: 'high-low', label: '↓',     sub: '高→低' },
+  { id: 'custom',   label: '···',   sub: '自定义' },
+];
+
+// ── Main ──────────────────────────────────────────────────────
+// bottomBarH: height of BottomQuickStatusBar + TabBar = offset from bottom
 export function PracticeControlSheet({
   open, onClose,
-  // Mode
   activeMode, onModeChange,
-  // Intervals
-  intervalsPreset, selectedIntervals, onToggleInterval, onSelectAll,
-  // Space
+  selectedIntervals, onToggleInterval, onSelectAll,
   spacePresetId, onSpacePreset,
-  // Flow
   flowPreset, onFlowPreset,
-  // L2 entry points (Batch D)
+  // L2 triggers (long-press wired by parent)
   onOpenSpaceL2, onOpenFlowL2, onOpenIntervalsL2,
+  // offset from page bottom so panel sits above tab+statusbar
+  bottomOffset = 0,
 }) {
   const isDark = useIsDark();
 
-  const handleModeChange = useCallback((id) => {
-    onModeChange(id);
-  }, [onModeChange]);
+  const panelBg = isDark
+    ? 'rgba(10,10,14,0.92)'
+    : 'rgba(248,248,250,0.93)';
+  const topBorder = isDark
+    ? 'rgba(255,255,255,0.09)'
+    : 'rgba(0,0,0,0.07)';
+  const divider = isDark
+    ? 'rgba(255,255,255,0.06)'
+    : 'rgba(0,0,0,0.06)';
 
   return (
-    <BottomSheet
-      open={open}
-      onClose={onClose}
-      title="Practice Settings"
-    >
-      {/* ── Mode ─────────────────────────────────────────── */}
-      <Section label="Mode" isDark={isDark}>
-        <ModeSection
-          activeMode={activeMode}
-          onModeChange={handleModeChange}
-          isDark={isDark}
-        />
-      </Section>
+    <AnimatePresence>
+      {open && (
+        <>
+          {/* Click-outside dismiss overlay — no visible background,
+              L0 already blurred/scaled by IntervalsTrainer */}
+          <div
+            onClick={onClose}
+            style={{ position: 'fixed', inset: 0, zIndex: 40 }}
+          />
 
-      {/* ── Intervals ────────────────────────────────────── */}
-      <Section label="Intervals" isDark={isDark} onDeepDive={onOpenIntervalsL2}>
-        <IntervalsSection
-          selectedIntervals={selectedIntervals}
-          onToggleInterval={onToggleInterval}
-          onSelectAll={onSelectAll}
-          isDark={isDark}
-        />
-      </Section>
+          {/* Panel — grows upward from bottom bar */}
+          <motion.div
+            initial={{ y: '100%' }}
+            animate={{ y: 0 }}
+            exit={{ y: '100%' }}
+            transition={SPRINGS_IV.sheetOpen}
+            drag="y"
+            dragConstraints={{ top: 0 }}
+            dragElastic={0.08}
+            onDragEnd={(_, info) => {
+              if (info.offset.y > 60 || info.velocity.y > 300) onClose();
+            }}
+            style={{
+              position: 'fixed',
+              bottom: bottomOffset,
+              left: 0, right: 0,
+              zIndex: 50,
+              background: panelBg,
+              backdropFilter: 'blur(28px)',
+              WebkitBackdropFilter: 'blur(28px)',
+              borderTop: `0.5px solid ${topBorder}`,
+              borderRadius: '20px 20px 0 0',
+              // no bottom radius — panel visually merges with bar below
+            }}
+          >
+            {/* Drag handle */}
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 4px' }}>
+              <div style={{ width: 32, height: 3.5, borderRadius: 2, background: isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.16)' }} />
+            </div>
 
-      {/* ── Space ────────────────────────────────────────── */}
-      <Section label="Space 音域" isDark={isDark} onDeepDive={onOpenSpaceL2}>
-        <div style={{ display: 'flex', gap: 6 }}>
-          {SPACE_PRESETS.map(p => (
-            <Chip
-              key={p.id}
-              label={p.label}
-              sublabel={p.sublabel}
-              active={spacePresetId === p.id}
-              onClick={() => onSpacePreset(p.id)}
-              isDark={isDark}
-              wide
-            />
-          ))}
-        </div>
-      </Section>
+            {/* Content — compact sections, no heavy padding */}
+            <div style={{ padding: '8px 16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-      {/* ── Flow ─────────────────────────────────────────── */}
-      <Section label="Flow 节奏" isDark={isDark} onDeepDive={onOpenFlowL2}>
-        <div style={{ display: 'flex', gap: 6 }}>
-          {FLOW_PRESETS.map(p => (
-            <Chip
-              key={p.id}
-              label={p.label}
-              sublabel={p.sublabel}
-              active={flowPreset === p.id}
-              onClick={() => onFlowPreset(p.id)}
-              isDark={isDark}
-              wide
-            />
-          ))}
-        </div>
-      </Section>
+              {/* Mode */}
+              <div>
+                <SectionLabel isDark={isDark}>Mode</SectionLabel>
+                <ModeRow activeMode={activeMode} onChange={onModeChange} isDark={isDark} />
+              </div>
 
-      {/* Bottom spacer for safe area */}
-      <div style={{ height: 8 }} />
-    </BottomSheet>
+              <div style={{ height: '0.5px', background: divider }} />
+
+              {/* Intervals */}
+              <div>
+                <SectionLabel isDark={isDark} onLongPress={onOpenIntervalsL2}>
+                  Intervals {onOpenIntervalsL2 && <span style={{ fontSize: 7.5, opacity: 0.45 }}>长按深调</span>}
+                </SectionLabel>
+                <IntervalsRow
+                  selectedIntervals={selectedIntervals}
+                  onToggle={onToggleInterval}
+                  onSelectAll={onSelectAll}
+                  isDark={isDark}
+                />
+              </div>
+
+              <div style={{ height: '0.5px', background: divider }} />
+
+              {/* Space + Flow side by side */}
+              <div style={{ display: 'flex', gap: 16 }}>
+                <div style={{ flex: 1 }}>
+                  <SectionLabel isDark={isDark} onLongPress={onOpenSpaceL2}>
+                    Space {onOpenSpaceL2 && <span style={{ fontSize: 7.5, opacity: 0.45 }}>长按深调</span>}
+                  </SectionLabel>
+                  <ChipGrid options={SPACE_OPTS} activeId={spacePresetId} onChange={onSpacePreset} isDark={isDark} />
+                </div>
+                <div style={{ width: '0.5px', background: divider, alignSelf: 'stretch' }} />
+                <div style={{ flex: 1 }}>
+                  <SectionLabel isDark={isDark} onLongPress={onOpenFlowL2}>
+                    Flow {onOpenFlowL2 && <span style={{ fontSize: 7.5, opacity: 0.45 }}>长按深调</span>}
+                  </SectionLabel>
+                  <ChipGrid options={FLOW_OPTS} activeId={flowPreset} onChange={onFlowPreset} isDark={isDark} />
+                </div>
+              </div>
+
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
   );
 }
