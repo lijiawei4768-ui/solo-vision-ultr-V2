@@ -96,4 +96,3 @@ export function IntervalsEditorL2({ isOpen, onClose, intervalsPreset, selectedIn
   );
 }
 
-function useIsDark() { return (useContext(ThemeContext)?.dark) ?? true; }
