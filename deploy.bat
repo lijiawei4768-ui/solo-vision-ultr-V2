@@ -52,35 +52,60 @@ echo [INFO] Git status after staging:
 git status --short
 echo.
 
+set NEED_COMMIT=1
 git diff --cached --quiet 2>nul
-if %errorlevel%==0 (
+if %errorlevel%==0 set NEED_COMMIT=0
+
+if "%NEED_COMMIT%"=="1" (
+    REM Use %date% and %time% directly - works on all Windows locales
+    set NOW=%date:~0,4%-%date:~5,2%-%date:~8,2% %time:~0,2%:%time:~3,2%:%time:~6,2%
+    set MSG=update !NOW!
+
+    echo [INFO] Commit message:
+    echo !MSG!
+    echo.
+
+    echo [INFO] Creating commit...
+    git commit -m "!MSG!"
+    if errorlevel 1 (
+        echo [ERROR] git commit failed.
+        echo Possible causes:
+        echo 1. Git user.name / user.email not configured
+        echo 2. A hook blocked the commit
+        echo 3. No actual changes to commit
+        goto END
+    )
+
+    echo.
+    echo [INFO] Latest commit:
+    git log -1 --oneline
+    echo.
+) else (
     echo [INFO] No staged changes found.
     echo [INFO] No new commit will be created.
-    goto END
+    echo.
 )
 
-for /f %%i in ('powershell -NoProfile -Command "Get-Date -Format \"yyyy-MM-dd HH:mm:ss\""') do set NOW=%%i
-set MSG=update %NOW%
+echo [INFO] Checking whether local branch is ahead of origin/%BRANCH% ...
+git fetch origin %BRANCH% >nul 2>nul
 
-echo [INFO] Commit message:
-echo %MSG%
-echo.
+set AHEAD_COUNT=
+for /f %%i in ('git rev-list --count origin/%BRANCH%..HEAD 2^>nul') do set AHEAD_COUNT=%%i
 
-echo [INFO] Creating commit...
-git commit -m "%MSG%"
-if errorlevel 1 (
-    echo [ERROR] git commit failed.
-    echo Possible causes:
-    echo 1. Git user.name / user.email not configured
-    echo 2. A hook blocked the commit
-    echo 3. No actual changes to commit
-    goto END
+if "%AHEAD_COUNT%"=="" (
+    echo [WARN] Cannot compare with origin/%BRANCH%.
+    echo [INFO] Will still try to push current branch.
+    echo.
+) else (
+    if "%AHEAD_COUNT%"=="0" (
+        echo [INFO] No unpushed commits detected.
+        echo [INFO] Local branch is already synced with origin/%BRANCH%.
+        goto SUCCESS
+    ) else (
+        echo [INFO] Local branch is ahead of origin/%BRANCH% by %AHEAD_COUNT% commit^(s^).
+        echo.
+    )
 )
-
-echo.
-echo [INFO] Latest commit:
-git log -1 --oneline
-echo.
 
 echo [INFO] Pushing to origin/%BRANCH% ...
 git push origin %BRANCH%
@@ -94,6 +119,7 @@ if errorlevel 1 (
     goto END
 )
 
+:SUCCESS
 echo.
 echo ==========================================
 echo   Push completed successfully
