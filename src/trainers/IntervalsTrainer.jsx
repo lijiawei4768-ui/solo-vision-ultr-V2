@@ -1,3 +1,4 @@
+
 // trainers/IntervalsTrainer.jsx  — v7b L0 + corrected L1/L2/L3 layer system
 //
 // Layer architecture (corrected):
@@ -90,6 +91,8 @@ export function IntervalTrainer({ settings, onSettings }) {
   const [spaceSettings,     setSpaceSettings]      = useState({ fretRange:{ min:0, max:12 }, strings:null });
   const [flowPreset,        setFlowPreset]         = useState('free');
   const [positionsPerStr,   setPosPerStr]          = useState(3);
+  const [practiceMode,      setPracticeMode]       = useState('learning'); // 'learning'|'blind'|'rootFirst'|'coreDrill'
+  const [zoneId,            setZoneId]             = useState('off');      // 'off'|'low'|'mid'|'high' (blind only)
 
   // ── Layer state ───────────────────────────────────────────
   const [l1Open,   setL1Open]   = useState(false);
@@ -264,11 +267,15 @@ export function IntervalTrainer({ settings, onSettings }) {
       <PracticeControlSheet
         open={l1Open}
         onClose={() => setL1Open(false)}
-        activeMode={activeMode}
-        onModeChange={handleModeChange}
-        selectedIntervals={selectedIntervals}
-        onToggleInterval={handleToggleInterval}
-        onSelectAll={handleSelectAll}
+        practiceMode={practiceMode}
+        onPracticeModeChange={setPracticeMode}
+        zoneId={zoneId}
+        onZoneChange={setZoneId}
+        intervalsPreset={intervalsPreset}
+        onIntervalsPreset={(id) => {
+          setIntervalsPreset(id);
+          if (id !== 'custom') setSelectedIntervals([]);
+        }}
         spacePresetId={spacePresetId}
         onSpacePreset={handleSpacePreset}
         flowPreset={flowPreset}
