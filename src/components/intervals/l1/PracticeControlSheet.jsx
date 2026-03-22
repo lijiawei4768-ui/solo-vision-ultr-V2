@@ -1,26 +1,26 @@
 // components/intervals/l1/PracticeControlSheet.jsx
 //
-// 布局完全照 intervals_remaining_screens.html 还原
+// 完全按 intervals_remaining_screens.html 像素级还原
 //
-// ┌─────────────────────────────────────────────────┐
-// │  handle                                         │
-// ├───────────────────────┬─────────────────────────┤  ← l1-row h:75px
-// │  [Mode stack]  flex.46│  [Intervals stack] .54  │
-// │  [Zone bar  ]         │                         │
-// ├───────────────────────┴─────────────────────────┤  ← l1-row h:60px
-// │  [Space]              │  [Flow]                 │
-// ├─────────────────────────────────────────────────┤
-// │  TabBar                                         │
-// └─────────────────────────────────────────────────┘
+// CSS 来源（直接从 HTML 抄）：
+//   .l1-sheet  → background:rgba(18,18,30,.97), border-radius:18px 18px 0 0
+//   .l1-row    → display:flex; gap:5px; padding:4px 8px; flex-shrink:0
+//   .l1-card   → background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08);
+//                border-radius:10px; display:flex; align-items:center; justify-content:center;
+//                font-size:10px; color:rgba(255,255,255,.6)
 //
-// Mode / Intervals → React Bits "Stack" pattern
-//   来源：https://reactbits.dev/components/stack
-//   逻辑：cards 叠放，随机微旋转；点击最上卡 → sendToBack → 循环到下一张
+// 布局（height:200px）：
+//   handle (6px auto margin)
+//   top row  h:75px → 左列 flex:.46 [Mode flex:3 + Zone flex:1] | 右列 flex:.54 [Intervals h:100%]
+//   bot row  h:60px → Space flex:1 | Flow flex:1
+//   tabbar   h:36px → border-top, space-around
 //
-// Space / Flow → Aceternity 风格 tap-card
-//   点击循环切换 preset；长按进 L2
+// 交互（React Bits Scroll Stack 灵感）：
+//   Mode / Intervals card → 点击下一项，值用 y-slide AnimatePresence 切换
+//   Zone → 仅 blind 时替换 Zone 占位卡（AnimatePresence）
+//   Space / Flow → 点击循环切换；长按 480ms → 关 L1 → 开 L2
 
-import React, { useContext, useRef, useCallback, useState } from 'react';
+import React, { useContext, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ThemeContext } from '../../../contexts';
 import { FONT_TEXT } from '../../../theme';
@@ -28,132 +28,109 @@ import { SPRINGS_IV } from '../../../motion/springs';
 
 function useIsDark() { return (useContext(ThemeContext)?.dark) ?? true; }
 
-// ─── ink helper ──────────────────────────────────────────────
-const ink = (isDark, a) =>
-  isDark ? `rgba(235,235,245,${a})` : `rgba(0,0,0,${a})`;
-
-// ─── Data ────────────────────────────────────────────────────
-const MODE_CARDS = [
-  { id: 'learning',  label: 'Visual',     sub: '指板可见' },
-  { id: 'blind',     label: 'Blind',      sub: '指板隐藏' },
-  { id: 'rootFirst', label: 'Root First', sub: '根音优先' },
-  { id: 'coreDrill', label: 'Core Drill', sub: '核心训练' },
+// ── 数据 ─────────────────────────────────────────────────────
+const MODE_CYCLE = [
+  { id: 'learning',  label: 'Visual'     },
+  { id: 'blind',     label: 'Blind'      },
+  { id: 'rootFirst', label: 'Root First' },
+  { id: 'coreDrill', label: 'Core Drill' },
 ];
 
-const INTERVAL_CARDS = [
-  { id: 'all',     label: 'All',    sub: '11 ivls'   },
-  { id: 'triad',   label: 'Triad',  sub: '3rd + 5th' },
-  { id: 'seventh', label: '7th',    sub: '3+5+b7'    },
-  { id: 'guide',   label: 'Guide',  sub: '3rd + 7th' },
+const INTERVAL_CYCLE = [
+  { id: 'all',     label: 'All 11' },
+  { id: 'triad',   label: 'Triad'  },
+  { id: 'seventh', label: '7th'    },
+  { id: 'guide',   label: 'Guide'  },
 ];
 
-const ZONE_OPTS = [
-  { id: 'off',  label: 'Off'        },
-  { id: 'low',  label: 'Low',  sub: '1–5'  },
-  { id: 'mid',  label: 'Mid',  sub: '5–9'  },
-  { id: 'high', label: 'High', sub: '9–12' },
+const ZONE_ITEMS = [
+  { id: 'off',  label: 'Off'  },
+  { id: 'low',  label: 'Low'  },
+  { id: 'mid',  label: 'Mid'  },
+  { id: 'high', label: 'High' },
 ];
 
 const SPACE_CYCLE = ['full', 'pos1', 'pos5', 'ead'];
-const SPACE_META  = { full: 'Full board', pos1: '1–5', pos5: '5–9', ead: 'EAD strings' };
+const SPACE_LABEL = { full: 'Full board', pos1: '1–5', pos5: '5–9', ead: 'EAD' };
 
-const FLOW_CYCLE = ['free', 'low-high', 'high-low'];
-const FLOW_META  = { free: 'Free', 'low-high': 'Low → High', 'high-low': 'High → Low' };
+const FLOW_CYCLE  = ['free', 'low-high', 'high-low'];
+const FLOW_LABEL  = { free: 'Free', 'low-high': 'Low → High', 'high-low': 'High → Low' };
 
-// ─── React Bits Stack ─────────────────────────────────────────
-// 核心逻辑：
-//   cards 数组，最后一项 = 视觉最上层
-//   点击最上层卡 → sendToBack → 该卡移到数组头部（最底层）
-//   外部 onSelect 接收新的当前选中 id（新的最上层）
-//
-// 旋转：每张非顶层卡有一个固定的微旋转（±1.5°），紧凑空间内几乎看不出叠层
-//        但点击瞬间有弹簧动画 —— 这就是 Stack 的质感
-function ReactBitsStack({ items, selectedId, onSelect, renderTopCard, isDark }) {
-  // 维护内部 cards 顺序（最后一项 = 当前顶层）
-  const [order, setOrder] = useState(() => {
-    const idx = items.findIndex(i => i.id === selectedId);
-    if (idx <= 0) return [...items];
-    return [...items.slice(0, idx), ...items.slice(idx + 1), items[idx]];
-  });
-
-  // 当外部 selectedId 变化时同步顺序
-  React.useEffect(() => {
-    setOrder(prev => {
-      const top = prev[prev.length - 1];
-      if (top?.id === selectedId) return prev;
-      const idx = prev.findIndex(i => i.id === selectedId);
-      if (idx < 0) return prev;
-      const next = [...prev.slice(0, idx), ...prev.slice(idx + 1), prev[idx]];
-      return next;
-    });
-  }, [selectedId]);
-
-  const sendToBack = () => {
-    setOrder(prev => {
-      if (prev.length < 2) return prev;
-      const top = prev[prev.length - 1];
-      const next = [top, ...prev.slice(0, -1)];
-      onSelect(next[next.length - 1].id); // 新的顶层
-      return next;
-    });
+// ── l1-card 基础样式工厂 ─────────────────────────────────────
+// 直接映射 HTML 的 .l1-card CSS
+function cardStyle(isDark, extra = {}) {
+  return {
+    background: isDark ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.04)',
+    border: `1px solid ${isDark ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.07)'}`,
+    borderRadius: 10,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: 10,
+    color: isDark ? 'rgba(255,255,255,.6)' : 'rgba(0,0,0,.6)',
+    fontFamily: FONT_TEXT,
+    ...extra,
   };
+}
 
-  const total = order.length;
-
+// ── React Bits Scroll Stack 灵感：值滑动切换动画 ──────────────
+// 点击时旧值向上飞出，新值从下滑入
+function SlideValue({ value, color }) {
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-      {order.map((card, idx) => {
-        const isTop   = idx === total - 1;
-        const depth   = total - 1 - idx; // 0=top，越大越底层
-        // 微旋转：底层卡轻微倾斜，顶层正 0
-        const rotateZ = isTop ? 0 : (idx % 2 === 0 ? -1.8 : 1.8);
-        // 底层卡微微下移
-        const translateY = depth * 2;
-
-        return (
-          <motion.div
-            key={card.id}
-            onClick={isTop ? sendToBack : undefined}
-            animate={{
-              rotateZ,
-              y: translateY,
-              scale: 1 - depth * 0.015,
-              zIndex: idx,
-            }}
-            transition={{ type: 'spring', stiffness: 320, damping: 26 }}
-            style={{
-              position: 'absolute',
-              inset: 0,
-              borderRadius: 10,
-              background: isDark
-                ? `rgba(255,255,255,${isTop ? 0.08 : 0.04})`
-                : `rgba(0,0,0,${isTop ? 0.06 : 0.03})`,
-              border: `1px solid ${isDark
-                ? `rgba(255,255,255,${isTop ? 0.10 : 0.06})`
-                : `rgba(0,0,0,${isTop ? 0.08 : 0.04})`}`,
-              cursor: isTop ? 'pointer' : 'default',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexDirection: 'column',
-              gap: 3,
-              overflow: 'hidden',
-            }}
-          >
-            {/* 只渲染顶层卡的内容 */}
-            {isTop && renderTopCard(card)}
-          </motion.div>
-        );
-      })}
-    </div>
+    <AnimatePresence mode="wait" initial={false}>
+      <motion.span
+        key={value}
+        initial={{ y: 8, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: -8, opacity: 0 }}
+        transition={{ duration: 0.15, ease: [0.25, 0.1, 0.25, 1] }}
+        style={{
+          fontSize: 8,
+          opacity: 0.5,
+          color: color ?? 'inherit',
+          fontFamily: FONT_TEXT,
+          lineHeight: 1,
+          display: 'block',
+        }}
+      >
+        {value}
+      </motion.span>
+    </AnimatePresence>
   );
 }
 
-// ─── Zone strip ───────────────────────────────────────────────
-function ZoneStrip({ zoneId, onChange, isDark }) {
+// ── 循环切换卡（Mode / Intervals）────────────────────────────
+// HTML: flex card，居中，title + 当前 value（小字）
+// 点击 → 下一项（值 y-slide）
+function CycleCard({ title, value, onTap, isDark, style = {} }) {
   return (
-    <div style={{ display: 'flex', gap: 3, height: '100%' }}>
-      {ZONE_OPTS.map(z => {
+    <motion.div
+      onClick={onTap}
+      whileTap={{ scale: 0.95, opacity: 0.8 }}
+      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+      style={{
+        ...cardStyle(isDark, {
+          flexDirection: 'column',
+          gap: 3,
+          cursor: 'pointer',
+          userSelect: 'none',
+          ...style,
+        }),
+      }}
+    >
+      <span style={{ lineHeight: 1 }}>{title}</span>
+      <SlideValue value={value} />
+    </motion.div>
+  );
+}
+
+// ── Zone 卡（blind 时替换占位卡）────────────────────────────
+// HTML: flex:1, font-size:9px, rgba(255,255,255,.3)
+// blind 时变成 4 个小按钮横排
+function ZoneCard({ zoneId, onChange, isDark }) {
+  return (
+    <div style={{ flex: 1, display: 'flex', gap: 3 }}>
+      {ZONE_ITEMS.map(z => {
         const active = zoneId === z.id;
         return (
           <motion.button
@@ -162,24 +139,25 @@ function ZoneStrip({ zoneId, onChange, isDark }) {
             whileTap={{ scale: 0.9 }}
             style={{
               flex: 1,
-              height: '100%',
-              borderRadius: 6,
-              cursor: 'pointer',
               background: active
-                ? (isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.07)')
-                : (isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)'),
+                ? (isDark ? 'rgba(255,255,255,.12)' : 'rgba(0,0,0,.08)')
+                : (isDark ? 'rgba(255,255,255,.04)' : 'rgba(0,0,0,.03)'),
               border: `1px solid ${active
-                ? (isDark ? 'rgba(255,255,255,0.13)' : 'rgba(0,0,0,0.09)')
-                : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)')}`,
+                ? (isDark ? 'rgba(255,255,255,.16)' : 'rgba(0,0,0,.10)')
+                : (isDark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.06)')}`,
+              borderRadius: 7,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              cursor: 'pointer',
             }}
           >
             <span style={{
               fontSize: 9,
               fontWeight: active ? 600 : 400,
-              color: ink(isDark, active ? 0.75 : 0.28),
+              color: isDark
+                ? (active ? 'rgba(255,255,255,.80)' : 'rgba(255,255,255,.30)')
+                : (active ? 'rgba(0,0,0,.70)'       : 'rgba(0,0,0,.28)'),
               fontFamily: FONT_TEXT,
               lineHeight: 1,
             }}>
@@ -192,161 +170,104 @@ function ZoneStrip({ zoneId, onChange, isDark }) {
   );
 }
 
-// ─── Simple tap card (Space / Flow) ──────────────────────────
-// Aceternity 风格：点击循环切换，长按进 L2
-function TapCard({ title, value, onClick, onLongPress, isDark }) {
-  const timerRef    = useRef(null);
-  const firedRef    = useRef(false);
+// ── Space / Flow 卡────────────────────────────────────────────
+// HTML: flex:1, flexDirection:column, gap:2px, title + 小字 value
+// 点击循环；长按 → L2
+function SpaceFlowCard({ title, value, onTap, onLongPress, isDark }) {
+  const timerRef  = useRef(null);
+  const firedRef  = useRef(false);
 
-  const down = () => {
+  const down = useCallback(() => {
     firedRef.current = false;
-    if (onLongPress) {
-      timerRef.current = setTimeout(() => {
-        firedRef.current = true;
-        onLongPress();
-      }, 480);
-    }
-  };
-  const up = () => {
+    timerRef.current = setTimeout(() => {
+      firedRef.current = true;
+      onLongPress?.();
+    }, 480);
+  }, [onLongPress]);
+
+  const up = useCallback(() => {
     clearTimeout(timerRef.current);
-    if (!firedRef.current) onClick?.();
+    if (!firedRef.current) onTap?.();
     firedRef.current = false;
-  };
-  const cancel = () => {
+  }, [onTap]);
+
+  const cancel = useCallback(() => {
     clearTimeout(timerRef.current);
     firedRef.current = false;
-  };
+  }, []);
 
   return (
     <motion.div
       onMouseDown={down} onMouseUp={up} onMouseLeave={cancel}
       onTouchStart={down} onTouchEnd={up} onTouchCancel={cancel}
-      whileTap={{ scale: 0.94 }}
-      transition={{ type: 'spring', stiffness: 400, damping: 28 }}
-      style={{
+      whileTap={{ scale: 0.95, opacity: 0.8 }}
+      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+      style={cardStyle(isDark, {
         flex: 1,
-        height: '100%',
-        borderRadius: 10,
-        cursor: 'pointer',
-        background: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
-        border: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)'}`,
-        display: 'flex',
         flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
         gap: 2,
+        cursor: 'pointer',
         userSelect: 'none',
-      }}
+      })}
     >
-      <span style={{
-        fontSize: 10,
-        fontWeight: 500,
-        color: ink(isDark, 0.65),
-        fontFamily: FONT_TEXT,
-        lineHeight: 1,
-      }}>
-        {title}
-      </span>
-      <AnimatePresence mode="wait" initial={false}>
-        <motion.span
-          key={value}
-          initial={{ opacity: 0, y: 3 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -3 }}
-          transition={{ duration: 0.1 }}
-          style={{
-            fontSize: 9,
-            color: ink(isDark, 0.38),
-            fontFamily: FONT_TEXT,
-            lineHeight: 1,
-          }}
-        >
-          {value}
-        </motion.span>
-      </AnimatePresence>
+      <span style={{ lineHeight: 1 }}>{title}</span>
+      <SlideValue value={value} />
     </motion.div>
   );
 }
 
-// ─── MAIN EXPORT ─────────────────────────────────────────────
+// ── MAIN EXPORT ───────────────────────────────────────────────
 export function PracticeControlSheet({
   open, onClose,
-  // L1 content mode
   practiceMode, onPracticeModeChange,
-  // Zone (blind only)
   zoneId, onZoneChange,
-  // Intervals
   intervalsPreset, onIntervalsPreset,
-  // Space
   spacePresetId, onSpacePreset,
-  // Flow
   flowPreset, onFlowPreset,
-  // L2 gates
   onOpenSpaceL2, onOpenFlowL2, onOpenIntervalsL2,
-  // offset for TabBar (already inside sheet here)
   bottomOffset = 0,
 }) {
-  const isDark = useIsDark();
+  const isDark  = useIsDark();
   const isBlind = practiceMode === 'blind';
 
-  // colour tokens matching HTML exactly
-  const sheetBg   = isDark ? 'rgba(18,18,30,0.97)' : 'rgba(255,255,255,0.98)';
-  const topBorder = isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.10)';
-  const handleCol = isDark ? 'rgba(255,255,255,0.20)' : 'rgba(0,0,0,0.15)';
-  const rowBorder = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+  // ── 循环逻辑 ───────────────────────────────────────────────
+  const modeIdx  = MODE_CYCLE.findIndex(m => m.id === practiceMode);
+  const modeLabel = MODE_CYCLE[modeIdx]?.label ?? 'Visual';
+  const cycleMode = () =>
+    onPracticeModeChange(MODE_CYCLE[(modeIdx + 1) % MODE_CYCLE.length].id);
 
-  // Space cycle
-  const spaceIdx  = SPACE_CYCLE.indexOf(spacePresetId ?? 'full');
-  const cycleSpace = () => onSpacePreset(SPACE_CYCLE[(spaceIdx + 1) % SPACE_CYCLE.length]);
-
-  // Flow cycle
-  const flowIdx   = FLOW_CYCLE.indexOf(flowPreset ?? 'free');
-  const cycleFlow = () => onFlowPreset(FLOW_CYCLE[(flowIdx + 1) % FLOW_CYCLE.length]);
-
-  // Intervals: if custom hits → go L2
-  const handleIvSelect = (id) => {
-    if (id === 'custom') {
-      onClose();
-      setTimeout(() => onOpenIntervalsL2?.(), 80);
-      return;
-    }
-    onIntervalsPreset(id);
+  const ivIdx   = INTERVAL_CYCLE.findIndex(i => i.id === intervalsPreset);
+  const ivLabel = INTERVAL_CYCLE[Math.max(0, ivIdx)]?.label ?? 'All 11';
+  const cycleIv = () => {
+    const next = INTERVAL_CYCLE[(Math.max(0, ivIdx) + 1) % INTERVAL_CYCLE.length];
+    onIntervalsPreset(next.id);
   };
 
-  // Top-card renderers for Stack
-  const renderModeTop = (card) => (
-    <>
-      <span style={{ fontSize: 10, fontWeight: 500, color: ink(isDark, 0.60), fontFamily: FONT_TEXT, lineHeight: 1 }}>
-        Mode
-      </span>
-      <span style={{ fontSize: 8, color: ink(isDark, 0.38), fontFamily: FONT_TEXT, lineHeight: 1 }}>
-        {card.label}
-      </span>
-    </>
-  );
+  const spIdx  = SPACE_CYCLE.indexOf(spacePresetId ?? 'full');
+  const cycleSpace = () => onSpacePreset(SPACE_CYCLE[(spIdx + 1) % SPACE_CYCLE.length]);
 
-  const renderIvTop = (card) => (
-    <>
-      <span style={{ fontSize: 10, fontWeight: 500, color: ink(isDark, 0.60), fontFamily: FONT_TEXT, lineHeight: 1 }}>
-        Intervals
-      </span>
-      <span style={{ fontSize: 8, color: ink(isDark, 0.38), fontFamily: FONT_TEXT, lineHeight: 1 }}>
-        {card.label}
-      </span>
-    </>
-  );
+  const flIdx  = FLOW_CYCLE.indexOf(flowPreset ?? 'free');
+  const cycleFlow = () => onFlowPreset(FLOW_CYCLE[(flIdx + 1) % FLOW_CYCLE.length]);
+
+  // ── 颜色 token（直接从 HTML）──────────────────────────────
+  const sheetBg   = isDark ? 'rgba(18,18,30,.97)'      : 'rgba(255,255,255,.98)';
+  const topBorder = isDark ? 'rgba(255,255,255,.10)'   : 'rgba(0,0,0,.10)';
+  const handleBg  = isDark ? 'rgba(255,255,255,.20)'   : 'rgba(0,0,0,.15)';
+  const tabBorder = isDark ? 'rgba(255,255,255,.06)'   : 'rgba(0,0,0,.06)';
+  const tabActive = isDark ? 'rgba(100,150,255,.9)'    : '#1a6cf5';
+  const tabMuted  = isDark ? 'rgba(255,255,255,.25)'   : 'rgba(0,0,0,.25)';
 
   return (
     <AnimatePresence>
       {open && (
         <>
-          {/* tap-outside to close */}
+          {/* tap-outside 关闭 */}
           <div
             onClick={onClose}
             style={{ position: 'fixed', inset: 0, zIndex: 40 }}
           />
 
-          {/* ── L1 bottom sheet ── */}
+          {/* ── l1-sheet ── */}
           <motion.div
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
@@ -359,139 +280,143 @@ export function PracticeControlSheet({
               if (info.offset.y > 55 || info.velocity.y > 280) onClose();
             }}
             style={{
+              // .l1-sheet
               position: 'fixed',
               bottom: bottomOffset,
               left: 0, right: 0,
               zIndex: 50,
               background: sheetBg,
-              backdropFilter: 'blur(28px)',
-              WebkitBackdropFilter: 'blur(28px)',
-              borderTop: `1px solid ${topBorder}`,
               borderRadius: '18px 18px 0 0',
-              boxShadow: isDark ? 'none' : '0 -8px 32px rgba(0,0,0,0.12)',
+              borderTop: `1px solid ${topBorder}`,
+              boxShadow: isDark ? 'none' : '0 -8px 32px rgba(0,0,0,.12)',
+              backdropFilter: 'blur(24px)',
+              WebkitBackdropFilter: 'blur(24px)',
               display: 'flex',
               flexDirection: 'column',
             }}
           >
             {/* ── handle ── */}
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '6px 0 2px' }}>
-              <div style={{ width: 28, height: 3, borderRadius: 2, background: handleCol }} />
-            </div>
-
-            {/* ── top row: Mode (left) + Intervals (right) ── */}
-            {/* HTML: l1-row h:75px, padding 4px 8px, gap 5px */}
+            {/* .bbar-handle: width:28px height:3px margin:6px auto 4px */}
             <div style={{
-              display: 'flex',
-              gap: 5,
-              padding: '4px 8px',
-              height: 75,
+              width: 28, height: 3, borderRadius: 2,
+              background: handleBg,
+              margin: '6px auto 4px',
               flexShrink: 0,
+            }} />
+
+            {/* ── top row — h:75px ── */}
+            {/* .l1-row: display:flex gap:5px padding:4px 8px */}
+            <div style={{
+              display: 'flex', gap: 5, padding: '4px 8px',
+              height: 75, flexShrink: 0,
             }}>
-              {/* LEFT: flex 0.46 — Mode stack (flex:3) + Zone (flex:1, blind only) */}
+
+              {/* 左列 flex:.46 — Mode (flex:3) + Zone (flex:1) */}
               <div style={{
                 flex: 0.46,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 4,
+                display: 'flex', flexDirection: 'column', gap: 4,
               }}>
-                {/* Mode Stack — flex:3 */}
-                <div style={{ flex: 3 }}>
-                  <ReactBitsStack
-                    items={MODE_CARDS}
-                    selectedId={practiceMode}
-                    onSelect={onPracticeModeChange}
-                    renderTopCard={renderModeTop}
-                    isDark={isDark}
-                  />
-                </div>
+                {/* Mode card — flex:3 */}
+                <CycleCard
+                  title="Mode"
+                  value={modeLabel}
+                  onTap={cycleMode}
+                  isDark={isDark}
+                  style={{ flex: 3 }}
+                />
 
-                {/* Zone — flex:1, 仅 blind */}
-                <AnimatePresence initial={false}>
-                  {isBlind ? (
-                    <motion.div
-                      key="zone-on"
-                      initial={{ flex: 0, opacity: 0 }}
-                      animate={{ flex: 1, opacity: 1 }}
-                      exit={{ flex: 0, opacity: 0 }}
-                      transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-                      style={{ overflow: 'hidden', minHeight: 0 }}
-                    >
-                      <ZoneStrip zoneId={zoneId} onChange={onZoneChange} isDark={isDark} />
-                    </motion.div>
-                  ) : (
-                    // 非 blind 时占位空间保持列高（但不显示内容）
-                    <motion.div
-                      key="zone-off"
-                      initial={{ flex: 1, opacity: 0 }}
-                      animate={{ flex: 1, opacity: 0 }}
-                      exit={{ flex: 0 }}
-                      style={{ flex: 1, borderRadius: 6,
-                        background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
-                        border: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)'}`,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      }}
-                    >
-                      <span style={{ fontSize: 9, color: ink(isDark, 0.22), fontFamily: FONT_TEXT }}>Zone</span>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                {/* Zone — flex:1 */}
+                {/* blind → Zone 按钮条；其余 → 占位卡 */}
+                <div style={{ flex: 1, display: 'flex' }}>
+                  <AnimatePresence mode="wait" initial={false}>
+                    {isBlind ? (
+                      <motion.div
+                        key="zone-active"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.14 }}
+                        style={{ flex: 1, display: 'flex' }}
+                      >
+                        <ZoneCard
+                          zoneId={zoneId}
+                          onChange={onZoneChange}
+                          isDark={isDark}
+                        />
+                      </motion.div>
+                    ) : (
+                      <motion.div
+                        key="zone-placeholder"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.14 }}
+                        style={{
+                          flex: 1,
+                          ...cardStyle(isDark, {
+                            fontSize: 9,
+                            color: isDark ? 'rgba(255,255,255,.3)' : 'rgba(0,0,0,.28)',
+                          }),
+                        }}
+                      >
+                        Zone
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
 
-              {/* RIGHT: flex 0.54 — Intervals Stack full height */}
+              {/* 右列 flex:.54 — Intervals full height */}
               <div style={{ flex: 0.54 }}>
-                <ReactBitsStack
-                  items={INTERVAL_CARDS}
-                  selectedId={intervalsPreset === 'custom' ? 'all' : (intervalsPreset ?? 'all')}
-                  onSelect={handleIvSelect}
-                  renderTopCard={renderIvTop}
+                <CycleCard
+                  title="Intervals"
+                  value={ivLabel}
+                  onTap={cycleIv}
                   isDark={isDark}
+                  style={{ height: '100%' }}
                 />
               </div>
             </div>
 
-            {/* ── bottom row: Space + Flow ── */}
-            {/* HTML: l1-row h:60px */}
+            {/* ── bottom row — h:60px ── */}
             <div style={{
-              display: 'flex',
-              gap: 5,
-              padding: '4px 8px',
-              height: 60,
-              flexShrink: 0,
+              display: 'flex', gap: 5, padding: '4px 8px',
+              height: 60, flexShrink: 0,
             }}>
-              <TapCard
+              <SpaceFlowCard
                 title="Space"
-                value={SPACE_META[spacePresetId] ?? 'Full board'}
-                onClick={cycleSpace}
-                onLongPress={() => { onClose(); setTimeout(() => onOpenSpaceL2?.(), 80); }}
+                value={SPACE_LABEL[spacePresetId] ?? 'Full board'}
+                onTap={cycleSpace}
+                onLongPress={() => {
+                  onClose();
+                  setTimeout(() => onOpenSpaceL2?.(), 80);
+                }}
                 isDark={isDark}
               />
-              <TapCard
+              <SpaceFlowCard
                 title="Flow"
-                value={FLOW_META[flowPreset] ?? 'Free'}
-                onClick={cycleFlow}
-                onLongPress={() => { onClose(); setTimeout(() => onOpenFlowL2?.(), 80); }}
+                value={FLOW_LABEL[flowPreset] ?? 'Free'}
+                onTap={cycleFlow}
+                onLongPress={() => {
+                  onClose();
+                  setTimeout(() => onOpenFlowL2?.(), 80);
+                }}
                 isDark={isDark}
               />
             </div>
 
-            {/* ── TabBar ── */}
-            {/* HTML: h:36px, border-top, space-around */}
+            {/* ── TabBar — h:36px ── */}
             <div style={{
-              height: 36,
-              borderTop: `1px solid ${rowBorder}`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-around',
-              padding: '0 10px',
-              flexShrink: 0,
+              height: 36, flexShrink: 0,
+              borderTop: `1px solid ${tabBorder}`,
+              display: 'flex', alignItems: 'center',
+              justifyContent: 'space-around', padding: '0 10px',
             }}>
               {['Home', 'Notes', 'Intervals', 'Changes', 'Scales', 'Me'].map(t => (
                 <span key={t} style={{
                   fontSize: 9,
                   fontWeight: t === 'Intervals' ? 700 : 400,
-                  color: t === 'Intervals'
-                    ? (isDark ? 'rgba(100,150,255,0.9)' : '#1a6cf5')
-                    : ink(isDark, 0.25),
+                  color: t === 'Intervals' ? tabActive : tabMuted,
                   fontFamily: FONT_TEXT,
                 }}>
                   {t}
