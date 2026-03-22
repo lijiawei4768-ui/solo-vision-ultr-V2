@@ -20877,7 +20877,7 @@ export function IntervalTrainer({ settings, onSettings }) {
         style={{
           flex: 1, display: 'flex', flexDirection: 'column',
           minHeight: 0, transformOrigin: '50% 40%',
-          overflow: 'hidden',  // ← L0 内部也不允许溢出
+          // overflow 不设 hidden — BottomQuickStatusBar 的 handle 需要正常显示
         }}
       >
         <TopUtilityRail

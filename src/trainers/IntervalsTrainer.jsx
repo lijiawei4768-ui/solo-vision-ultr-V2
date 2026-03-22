@@ -1,5 +1,6 @@
-// trainers/IntervalsTrainer.jsx — v8 fixes
-// Fix 1: overflow:hidden on root → 防止页面可滚动/位置偏移
+// trainers/IntervalsTrainer.jsx — v9
+// Fix: 去掉根 div overflow:hidden → 改用 overscrollBehavior:none
+//      防止滚动的同时不裁剪 BottomQuickStatusBar
 
 import React, {
   useState, useEffect, useCallback, useContext, useRef,
@@ -26,9 +27,9 @@ import { SpaceEditorL3 }        from '../components/intervals/l3/SpaceEditorL3';
 import { FlowEditorL3 }         from '../components/intervals/l3/FlowEditorL3';
 import { IntervalsEditorL3 }    from '../components/intervals/l3/IntervalsEditorL3';
 
-const OPEN_MIDI         = [40, 45, 50, 55, 59, 64];
-const CORRECT_COOLDOWN  = 1000;
-const ALL_INTERVALS     = INTERVAL_LABELS.filter(l => l !== 'R');
+const OPEN_MIDI        = [40, 45, 50, 55, 59, 64];
+const CORRECT_COOLDOWN = 1000;
+const ALL_INTERVALS    = INTERVAL_LABELS.filter(l => l !== 'R');
 
 function computeViewport(rootFret, targetFret, total = 12, width = 5) {
   const lo   = Math.min(rootFret, targetFret);
@@ -46,23 +47,23 @@ export function IntervalTrainer({ settings, onSettings }) {
   const themeCtx = useContext(ThemeContext);
   const isDark   = themeCtx?.dark ?? true;
 
-  const [activeMode,        setActiveMode]      = useState('findRoot');
-  const [currentQuestion,   setCurrentQuestion] = useState(null);
-  const [answerState,       setAnswerState]     = useState('idle');
-  const [micActive,         setMicActive]       = useState(false);
-  const [viewportMin,       setViewportMin]     = useState(0);
-  const [viewportMax,       setViewportMax]     = useState(4);
-  const [score,             setScore]           = useState({ correct:0, total:0 });
-  const [streak,            setStreak]          = useState(0);
+  const [activeMode,        setActiveMode]       = useState('findRoot');
+  const [currentQuestion,   setCurrentQuestion]  = useState(null);
+  const [answerState,       setAnswerState]      = useState('idle');
+  const [micActive,         setMicActive]        = useState(false);
+  const [viewportMin,       setViewportMin]      = useState(0);
+  const [viewportMax,       setViewportMax]      = useState(4);
+  const [score,             setScore]            = useState({ correct:0, total:0 });
+  const [streak,            setStreak]           = useState(0);
 
-  const [intervalsPreset,   setIntervalsPreset]  = useState('all');
-  const [selectedIntervals, setSelectedIntervals]= useState([]);
-  const [spacePresetId,     setSpacePresetId]    = useState('full');
-  const [spaceSettings,     setSpaceSettings]    = useState({ fretRange:{ min:0, max:12 }, strings:null });
-  const [flowPreset,        setFlowPreset]       = useState('free');
-  const [positionsPerStr,   setPosPerStr]        = useState(3);
-  const [practiceMode,      setPracticeMode]     = useState('learning');
-  const [zoneId,            setZoneId]           = useState('off');
+  const [intervalsPreset,   setIntervalsPreset]   = useState('all');
+  const [selectedIntervals, setSelectedIntervals] = useState([]);
+  const [spacePresetId,     setSpacePresetId]     = useState('full');
+  const [spaceSettings,     setSpaceSettings]     = useState({ fretRange:{ min:0, max:12 }, strings:null });
+  const [flowPreset,        setFlowPreset]        = useState('free');
+  const [positionsPerStr,   setPosPerStr]         = useState(3);
+  const [practiceMode,      setPracticeMode]      = useState('learning');
+  const [zoneId,            setZoneId]            = useState('off');
 
   const [l1Open,   setL1Open]   = useState(false);
   const [l2Active, setL2Active] = useState(null);
@@ -123,8 +124,8 @@ export function IntervalTrainer({ settings, onSettings }) {
 
   const { rms } = useAudioEngine({ onPitchDetected:handlePitchDetected, enabled:micActive });
 
-  const handleModeChange    = useCallback((id) => { setActiveMode(id); setAnswerState('idle'); }, []);
-  const handleToggleInterval= useCallback((ivl) => {
+  const handleModeChange     = useCallback((id) => { setActiveMode(id); setAnswerState('idle'); }, []);
+  const handleToggleInterval = useCallback((ivl) => {
     setSelectedIntervals(prev => {
       if (prev.length===0) return ALL_INTERVALS.filter(i => i!==ivl);
       if (prev.includes(ivl)) { const next = prev.filter(i => i!==ivl); return next.length===0 ? [] : next; }
@@ -166,7 +167,6 @@ export function IntervalTrainer({ settings, onSettings }) {
   const anyL2Open = l2Active !== null;
 
   return (
-    // ── FIX 1: overflow:hidden 防止页面可滚动 ────────────────
     <div style={{
       flex: 1,
       display: 'flex',
@@ -174,10 +174,15 @@ export function IntervalTrainer({ settings, onSettings }) {
       minHeight: 0,
       background: pageBg,
       paddingBottom: tabBarH,
-      overflow: 'hidden',       // ← 关键：锁定视口，不允许滚动
+      // ── FIX: 不用 overflow:hidden（会裁掉 BottomQuickStatusBar） ──
+      // 用 overscrollBehavior:none 防止系统 bounce 滚动
+      overscrollBehavior: 'none',
+      // iOS: 阻止橡皮筋效果
+      WebkitOverflowScrolling: 'auto',
       position: 'relative',
     }}>
-      {/* L0 */}
+
+      {/* ── L0 ── */}
       <motion.div
         animate={{
           scale:  l1Open || anyL2Open ? 0.96 : 1,
@@ -185,9 +190,12 @@ export function IntervalTrainer({ settings, onSettings }) {
         }}
         transition={{ type:'spring', stiffness:380, damping:38 }}
         style={{
-          flex: 1, display: 'flex', flexDirection: 'column',
-          minHeight: 0, transformOrigin: '50% 40%',
-          // overflow 不设 hidden — BottomQuickStatusBar 的 handle 需要正常显示
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: 0,
+          transformOrigin: '50% 40%',
+          // 不加 overflow:hidden — 保持 BottomQuickStatusBar handle 完整显示
         }}
       >
         <TopUtilityRail
@@ -212,6 +220,7 @@ export function IntervalTrainer({ settings, onSettings }) {
           highlights={highlights} onFretTap={handleFretTap}
         />
         <div style={{ flexShrink:0, height:8 }} />
+        {/* ── L0 Handle + Quick Status ── 保持完整不裁剪 */}
         <BottomQuickStatusBar
           activeMode={activeMode}
           intervalsPreset={intervalsPreset}
@@ -221,7 +230,7 @@ export function IntervalTrainer({ settings, onSettings }) {
         />
       </motion.div>
 
-      {/* L1 */}
+      {/* ── L1 ── */}
       <PracticeControlSheet
         open={l1Open}
         onClose={() => setL1Open(false)}
@@ -244,7 +253,7 @@ export function IntervalTrainer({ settings, onSettings }) {
         bottomOffset={`calc(${tabBarH})`}
       />
 
-      {/* L2 */}
+      {/* ── L2 ── */}
       <SpaceEditorL2
         isOpen={l2Active === 'space'}
         onClose={() => setL2Active(null)}
@@ -272,7 +281,7 @@ export function IntervalTrainer({ settings, onSettings }) {
         onOpenL3={() => openL3('intervals')}
       />
 
-      {/* L3 */}
+      {/* ── L3 ── */}
       <SpaceEditorL3
         isOpen={l3Active === 'space'}
         onClose={() => setL3Active(null)}

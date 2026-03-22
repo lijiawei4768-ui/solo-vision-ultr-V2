@@ -1,15 +1,10 @@
 // components/intervals/l2/SpaceEditorL2.jsx
-// Fix 6: iOS 相册风格拖选
-//   - touchmove 在容器级监听，用 elementFromPoint 找目标格
-//   - 每个格子有 data-row / data-col 属性
-//   - 从任意起点开始，连续滑过即选中
-//   - 反向滑（经过已选中格）= 取消
+// iOS 相册风格拖选（保留）+ 新增"+"自定义 preset 入口
 
 import React, { useContext, useRef, useState, useCallback } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ThemeContext } from '../../../contexts';
 import { FONT_TEXT, FONT_MONO } from '../../../theme';
-import { SPRINGS_IV } from '../../../motion/springs';
 import { SPACE_PRESETS } from '../../../trainers/intervals/constants';
 import { L2Overlay } from './L2Overlay';
 
@@ -34,74 +29,65 @@ function presetToSelected(id) {
 }
 
 function GridContent({ spacePresetId, onSpaceChange, isDark }) {
-  const [selected, setSelected] = useState(() => presetToSelected(spacePresetId));
+  const [selected,     setSelected]    = useState(() => presetToSelected(spacePresetId));
+  const [savingPreset, setSavingPreset]= useState(false);
+  const [presetName,   setPresetName]  = useState('');
+  // 用户自定义 presets（内存状态，每次打开重置）
+  const [customPresets, setCustomPresets] = useState([]);
 
-  // drag state refs
-  const dragMode  = useRef('select'); // 'select' | 'deselect'
-  const touched   = useRef(new Set());
-  const dragging  = useRef(false);
-  const gridRef   = useRef(null);
+  const dragMode   = useRef('select');
+  const touched    = useRef(new Set());
+  const dragging   = useRef(false);
 
   const isSelected = useCallback((r, c) =>
     selected === null || selected.has(`${r},${c}`), [selected]);
 
-  // 切换单格状态
   const toggle = useCallback((r, c, mode) => {
     const key = `${r},${c}`;
     setSelected(prev => {
-      // prev===null 表示全选
       const base = prev === null
         ? new Set(Array.from({ length: ROWS * COLS }, (_, i) => `${Math.floor(i/COLS)},${i%COLS}`))
         : new Set(prev);
-      if (mode === 'select') base.add(key);
-      else base.delete(key);
+      if (mode === 'select') base.add(key); else base.delete(key);
       return base;
     });
   }, []);
 
-  // ── iOS 相册风格：touchmove 在容器级用 elementFromPoint ──
+  // iOS 相册风格 touchmove via elementFromPoint
   const handleTouchStart = useCallback((e) => {
     const touch = e.touches[0];
-    const el    = document.elementFromPoint(touch.clientX, touch.clientY);
+    const el = document.elementFromPoint(touch.clientX, touch.clientY);
     if (!el) return;
-    const row = parseInt(el.dataset.row ?? el.closest?.('[data-row]')?.dataset?.row);
-    const col = parseInt(el.dataset.col ?? el.closest?.('[data-col]')?.dataset?.col);
+    const row = parseInt(el.dataset?.row ?? el.closest?.('[data-row]')?.dataset?.row);
+    const col = parseInt(el.dataset?.col ?? el.closest?.('[data-col]')?.dataset?.col);
     if (isNaN(row) || isNaN(col)) return;
-
     dragging.current = true;
     touched.current  = new Set([`${row},${col}`]);
-    // 起始格的当前状态决定本次是"选中"还是"取消"模式
     dragMode.current = isSelected(row, col) ? 'deselect' : 'select';
     toggle(row, col, dragMode.current);
   }, [isSelected, toggle]);
 
   const handleTouchMove = useCallback((e) => {
     if (!dragging.current) return;
-    e.preventDefault(); // 防止滚动
+    e.preventDefault();
     const touch = e.touches[0];
-    const el    = document.elementFromPoint(touch.clientX, touch.clientY);
+    const el = document.elementFromPoint(touch.clientX, touch.clientY);
     if (!el) return;
-
-    // 找到有 data-row/col 的元素（或祖先）
     const rowEl = el.dataset?.row !== undefined ? el : el.closest?.('[data-row]');
     const colEl = el.dataset?.col !== undefined ? el : el.closest?.('[data-col]');
     if (!rowEl || !colEl) return;
     const row = parseInt(rowEl.dataset.row);
     const col = parseInt(colEl.dataset.col);
     if (isNaN(row) || isNaN(col)) return;
-
     const key = `${row},${col}`;
-    if (touched.current.has(key)) return; // 已经处理过
+    if (touched.current.has(key)) return;
     touched.current.add(key);
     toggle(row, col, dragMode.current);
   }, [toggle]);
 
-  const handleTouchEnd = useCallback(() => {
-    dragging.current = false;
-  }, []);
+  const handleTouchEnd = useCallback(() => { dragging.current = false; }, []);
 
-  // 鼠标备用（桌面调试）
-  const handleMouseDown = useCallback((r, c, e) => {
+  const handleMouseDown = useCallback((r, c) => {
     dragging.current = true;
     touched.current  = new Set([`${r},${c}`]);
     dragMode.current = isSelected(r, c) ? 'deselect' : 'select';
@@ -118,18 +104,30 @@ function GridContent({ spacePresetId, onSpaceChange, isDark }) {
 
   const handleMouseUp = useCallback(() => { dragging.current = false; }, []);
 
-  const applyPreset = (id) => {
-    setSelected(id === 'full' ? null : presetToSelected(id));
+  const applyPreset = (id, cells) => {
+    if (cells !== undefined) {
+      setSelected(cells);
+    } else {
+      setSelected(id === 'full' ? null : presetToSelected(id));
+    }
     onSpaceChange?.(id);
   };
 
-  const labelC  = isDark ? 'rgba(235,235,245,0.28)' : 'rgba(0,0,0,0.28)';
-  const cellOn  = isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.14)';
-  const cellOff = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)';
-  const bdrOn   = isDark ? 'rgba(255,255,255,0.28)' : 'rgba(0,0,0,0.18)';
-  const bdrOff  = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)';
+  const saveCustomPreset = () => {
+    if (!presetName.trim()) return;
+    const snapshot = selected ? new Set(selected) : null;
+    setCustomPresets(prev => [...prev, { id: `custom-${Date.now()}`, label: presetName.trim(), cells: snapshot }]);
+    setPresetName('');
+    setSavingPreset(false);
+    onSpaceChange?.('custom');
+  };
 
-  // 每格尺寸自适应（L2面板约 92vw）
+  const labelC = isDark ? 'rgba(235,235,245,0.28)' : 'rgba(0,0,0,0.28)';
+  const cellOn = isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.14)';
+  const cellOff= isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)';
+  const bdrOn  = isDark ? 'rgba(255,255,255,0.28)' : 'rgba(0,0,0,0.18)';
+  const bdrOff = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)';
+
   const CELL = 22;
   const GAP  = 3;
 
@@ -144,15 +142,12 @@ function GridContent({ spacePresetId, onSpaceChange, isDark }) {
       }}>
         <div />
         {Array.from({ length: COLS }, (_, i) => (
-          <div key={i} style={{ textAlign: 'center', fontSize: 7.5, color: labelC, fontFamily: FONT_MONO }}>
-            {i + 1}
-          </div>
+          <div key={i} style={{ textAlign: 'center', fontSize: 7.5, color: labelC, fontFamily: FONT_MONO }}>{i + 1}</div>
         ))}
       </div>
 
-      {/* 网格 — 触摸事件在容器级 */}
+      {/* 6×12 网格 */}
       <div
-        ref={gridRef}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
@@ -160,25 +155,15 @@ function GridContent({ spacePresetId, onSpaceChange, isDark }) {
         style={{ touchAction: 'none', userSelect: 'none' }}
       >
         {Array.from({ length: ROWS }, (_, r) => (
-          <div
-            key={r}
-            style={{
-              display: 'grid',
-              gridTemplateColumns: `20px repeat(${COLS}, ${CELL}px)`,
-              gap: `${GAP}px`,
-              marginBottom: r < ROWS - 1 ? GAP : 0,
-            }}
-          >
-            {/* 弦标签 */}
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 3,
-            }}>
-              <span style={{ fontSize: 7, color: labelC, fontFamily: FONT_MONO }}>
-                {STRING_NAMES[r]}
-              </span>
+          <div key={r} style={{
+            display: 'grid',
+            gridTemplateColumns: `20px repeat(${COLS}, ${CELL}px)`,
+            gap: `${GAP}px`,
+            marginBottom: r < ROWS - 1 ? GAP : 0,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 3 }}>
+              <span style={{ fontSize: 7, color: labelC, fontFamily: FONT_MONO }}>{STRING_NAMES[r]}</span>
             </div>
-
-            {/* 格子 */}
             {Array.from({ length: COLS }, (_, c) => {
               const on = isSelected(r, c);
               return (
@@ -186,17 +171,14 @@ function GridContent({ spacePresetId, onSpaceChange, isDark }) {
                   key={c}
                   data-row={r}
                   data-col={c}
-                  onMouseDown={(e) => handleMouseDown(r, c, e)}
+                  onMouseDown={() => handleMouseDown(r, c)}
                   onMouseEnter={() => handleMouseEnter(r, c)}
                   style={{
                     width: CELL, height: CELL,
-                    borderRadius: 6,
-                    cursor: 'pointer',
+                    borderRadius: 6, cursor: 'pointer',
                     background: on ? cellOn : cellOff,
                     border: `0.5px solid ${on ? bdrOn : bdrOff}`,
-                    // 平滑过渡提供视觉反馈
                     transition: 'background 0.06s, border-color 0.06s',
-                    // 选中时轻微放大
                     transform: on ? 'scale(1)' : 'scale(0.88)',
                   }}
                 />
@@ -206,10 +188,11 @@ function GridContent({ spacePresetId, onSpaceChange, isDark }) {
         ))}
       </div>
 
-      {/* Preset 胶囊 */}
-      <div style={{ display: 'flex', gap: 6, marginTop: 12, overflowX: 'auto' }}>
+      {/* Preset 胶囊行 + "+" 按钮 */}
+      <div style={{ display: 'flex', gap: 6, marginTop: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+        {/* 内置 presets */}
         {SPACE_PRESETS.filter(p => p.id !== 'custom').map(p => {
-          const act = spacePresetId === p.id;
+          const act = spacePresetId === p.id && !customPresets.some(cp => cp.id === spacePresetId);
           return (
             <motion.button
               key={p.id}
@@ -231,6 +214,110 @@ function GridContent({ spacePresetId, onSpaceChange, isDark }) {
             </motion.button>
           );
         })}
+
+        {/* 用户自定义 presets */}
+        {customPresets.map(cp => {
+          const act = spacePresetId === cp.id;
+          return (
+            <motion.button
+              key={cp.id}
+              onClick={() => applyPreset(cp.id, cp.cells)}
+              whileTap={{ scale: 0.93 }}
+              style={{
+                flexShrink: 0, padding: '5px 12px', borderRadius: 16, cursor: 'pointer',
+                background: act ? (isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.09)') : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)'),
+                border: `0.5px solid ${act ? (isDark ? 'rgba(255,255,255,0.20)' : 'rgba(0,0,0,0.15)') : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)')}`,
+              }}
+            >
+              <span style={{
+                fontSize: 11, fontWeight: act ? 600 : 400,
+                color: isDark ? (act ? 'rgba(235,235,245,0.88)' : 'rgba(235,235,245,0.38)') : (act ? 'rgba(0,0,0,0.80)' : 'rgba(0,0,0,0.36)'),
+                fontFamily: FONT_TEXT,
+              }}>
+                {cp.label}
+              </span>
+            </motion.button>
+          );
+        })}
+
+        {/* ── "+" 新增自定义 preset ── */}
+        {!savingPreset ? (
+          <motion.button
+            onClick={() => setSavingPreset(true)}
+            whileTap={{ scale: 0.90 }}
+            style={{
+              flexShrink: 0,
+              width: 28, height: 28, borderRadius: 14,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
+              border: `0.5px solid ${isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.10)'}`,
+              cursor: 'pointer',
+            }}
+          >
+            <svg width={10} height={10} viewBox="0 0 10 10" fill="none">
+              <path d="M5 1v8M1 5h8"
+                stroke={isDark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.45)'}
+                strokeWidth={1.4} strokeLinecap="round"/>
+            </svg>
+          </motion.button>
+        ) : (
+          /* 内联命名输入 */
+          <AnimatePresence>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                background: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)',
+                border: `0.5px solid ${isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.10)'}`,
+                borderRadius: 16, padding: '4px 8px',
+              }}
+            >
+              <input
+                autoFocus
+                value={presetName}
+                onChange={e => setPresetName(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') saveCustomPreset();
+                  if (e.key === 'Escape') setSavingPreset(false);
+                }}
+                placeholder="名称"
+                style={{
+                  background: 'none', border: 'none', outline: 'none',
+                  fontSize: 11, color: isDark ? 'rgba(235,235,245,0.82)' : 'rgba(0,0,0,0.75)',
+                  fontFamily: FONT_TEXT, width: 60,
+                  '::placeholder': { color: 'rgba(255,255,255,0.3)' },
+                }}
+              />
+              <motion.button
+                onClick={saveCustomPreset}
+                whileTap={{ scale: 0.88 }}
+                style={{
+                  padding: '2px 8px', borderRadius: 10,
+                  background: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
+                  border: 'none', cursor: 'pointer',
+                  fontSize: 10, color: isDark ? 'rgba(235,235,245,0.75)' : 'rgba(0,0,0,0.65)',
+                  fontFamily: FONT_TEXT,
+                }}
+              >
+                保存
+              </motion.button>
+              <motion.button
+                onClick={() => setSavingPreset(false)}
+                whileTap={{ scale: 0.88 }}
+                style={{
+                  padding: '2px 6px', borderRadius: 10,
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  fontSize: 10, color: isDark ? 'rgba(235,235,245,0.38)' : 'rgba(0,0,0,0.35)',
+                  fontFamily: FONT_TEXT,
+                }}
+              >
+                取消
+              </motion.button>
+            </motion.div>
+          </AnimatePresence>
+        )}
       </div>
     </div>
   );
