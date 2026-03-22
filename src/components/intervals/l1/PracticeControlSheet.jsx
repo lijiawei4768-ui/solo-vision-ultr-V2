@@ -1,16 +1,10 @@
 // components/intervals/l1/PracticeControlSheet.jsx
 //
-// 修正三个问题：
-//   1. 删掉 L1 里的假 TabBar（真 TabBar 在 App 层，L1 不管它）
-//   2. 加高两排 row（top: 96px, bottom: 80px）
-//   3. L2 入口用 onContextMenu（iOS 长按触发 contextmenu，最可靠）
-//      + 同时保留 timer 长按（安卓 / 桌面）
-//
-// 布局对应 HTML：
-//   handle
-//   top row  → 左列 flex:.46 [Mode tall + Zone strip] | 右列 flex:.54 [Intervals tall]
-//   bottom row → Space | Flow
-//   （无 TabBar，由外层 App 负责）
+// 修正：
+//   ✅ 删掉假 TabBar
+//   ✅ 加高（top row 110px, bottom row 90px）
+//   ✅ Mode/Intervals 加 SVG 图标
+//   ✅ L2 入口 onContextMenu（长按进入 Space / Flow L2）
 
 import React, { useContext, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -22,10 +16,10 @@ function useIsDark() { return (useContext(ThemeContext)?.dark) ?? true; }
 
 // ── 数据 ─────────────────────────────────────────────────────
 const MODE_CYCLE = [
-  { id: 'learning',  label: 'Visual'     },
-  { id: 'blind',     label: 'Blind'      },
-  { id: 'rootFirst', label: 'Root First' },
-  { id: 'coreDrill', label: 'Core Drill' },
+  { id: 'learning',  label: 'Visual',     icon: 'eye'  },
+  { id: 'blind',     label: 'Blind',      icon: 'eye-off' },
+  { id: 'rootFirst', label: 'Root First', icon: 'root' },
+  { id: 'coreDrill', label: 'Core Drill', icon: 'target' },
 ];
 const INTERVAL_CYCLE = [
   { id: 'all',     label: 'All 11' },
@@ -44,31 +38,92 @@ const SPACE_LABEL = { full: 'Full board', pos1: '1–5', pos5: '5–9', ead: 'EA
 const FLOW_CYCLE  = ['free', 'low-high', 'high-low'];
 const FLOW_LABEL  = { free: 'Free', 'low-high': 'Low → High', 'high-low': 'High → Low' };
 
-// ── .l1-card 基础样式 ─────────────────────────────────────────
-function cardStyle(isDark, extra = {}) {
-  return {
-    background: isDark ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.04)',
-    border:     `1px solid ${isDark ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.07)'}`,
-    borderRadius: 10,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontFamily: FONT_TEXT,
-    ...extra,
-  };
+// ── SVG icons ─────────────────────────────────────────────────
+function Icon({ type, size = 16, color }) {
+  const s = { width: size, height: size, display: 'block' };
+  switch (type) {
+    case 'eye':
+      return (
+        <svg style={s} viewBox="0 0 20 20" fill="none">
+          <ellipse cx="10" cy="10" rx="8" ry="5" stroke={color} strokeWidth="1.3"/>
+          <circle cx="10" cy="10" r="2.2" fill={color}/>
+        </svg>
+      );
+    case 'eye-off':
+      return (
+        <svg style={s} viewBox="0 0 20 20" fill="none">
+          <path d="M2 10 Q10 4 18 10 Q10 16 2 10" stroke={color} strokeWidth="1.3" strokeLinecap="round"/>
+          <line x1="4" y1="4" x2="16" y2="16" stroke={color} strokeWidth="1.4" strokeLinecap="round"/>
+        </svg>
+      );
+    case 'root':
+      return (
+        <svg style={s} viewBox="0 0 20 20" fill="none">
+          <circle cx="6" cy="10" r="2.8" fill={color}/>
+          <path d="M10 9 Q13 5 16 9" stroke={color} strokeWidth="1.3" strokeLinecap="round" fill="none"/>
+          <circle cx="16" cy="10.5" r="2.2" stroke={color} strokeWidth="1.3"/>
+        </svg>
+      );
+    case 'target':
+      return (
+        <svg style={s} viewBox="0 0 20 20" fill="none">
+          <circle cx="10" cy="10" r="7.5" stroke={color} strokeWidth="1.1"/>
+          <circle cx="10" cy="10" r="4"   stroke={color} strokeWidth="1.1"/>
+          <circle cx="10" cy="10" r="1.2" fill={color}/>
+        </svg>
+      );
+    case 'music':
+      return (
+        <svg style={s} viewBox="0 0 20 20" fill="none">
+          <path d="M8 15V6l8-1.5V13" stroke={color} strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+          <circle cx="6" cy="15" r="2" stroke={color} strokeWidth="1.2"/>
+          <circle cx="14" cy="13" r="2" stroke={color} strokeWidth="1.2"/>
+        </svg>
+      );
+    case 'grid':
+      return (
+        <svg style={s} viewBox="0 0 20 20" fill="none">
+          <rect x="3" y="3" width="6" height="6" rx="1.5" stroke={color} strokeWidth="1.2"/>
+          <rect x="11" y="3" width="6" height="6" rx="1.5" stroke={color} strokeWidth="1.2"/>
+          <rect x="3" y="11" width="6" height="6" rx="1.5" stroke={color} strokeWidth="1.2"/>
+          <rect x="11" y="11" width="6" height="6" rx="1.5" stroke={color} strokeWidth="1.2"/>
+        </svg>
+      );
+    case 'flow':
+      return (
+        <svg style={s} viewBox="0 0 20 20" fill="none">
+          <path d="M4 10 Q10 4 16 10" stroke={color} strokeWidth="1.3" strokeLinecap="round" fill="none"/>
+          <path d="M4 10 Q10 16 16 10" stroke={color} strokeWidth="1.3" strokeLinecap="round" fill="none" strokeDasharray="2 2"/>
+        </svg>
+      );
+    default:
+      return null;
+  }
 }
 
-// ── 值滑动切换动画（React Bits 风格）─────────────────────────
-function SlideValue({ value }) {
+// ── l1-card 基础样式 ─────────────────────────────────────────
+const cardStyle = (isDark, extra = {}) => ({
+  background:   isDark ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.04)',
+  border:       `1px solid ${isDark ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.07)'}`,
+  borderRadius: 12,
+  fontFamily:   FONT_TEXT,
+  display:      'flex',
+  alignItems:   'center',
+  justifyContent: 'center',
+  ...extra,
+});
+
+// ── 值滑动切换 ────────────────────────────────────────────────
+function SlideValue({ value, size = 11 }) {
   return (
     <AnimatePresence mode="wait" initial={false}>
       <motion.span
         key={value}
-        initial={{ y: 8, opacity: 0 }}
+        initial={{ y: 7, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        exit={{ y: -8, opacity: 0 }}
-        transition={{ duration: 0.15, ease: [0.25, 0.1, 0.25, 1] }}
-        style={{ display: 'block', fontSize: 11, opacity: 0.45, lineHeight: 1 }}
+        exit={{ y: -7, opacity: 0 }}
+        transition={{ duration: 0.14 }}
+        style={{ fontSize: size, opacity: 0.45, display: 'block', lineHeight: 1 }}
       >
         {value}
       </motion.span>
@@ -77,8 +132,8 @@ function SlideValue({ value }) {
 }
 
 // ── 循环切换卡：Mode / Intervals ─────────────────────────────
-// 点击 → 下一项，值 y-slide
-function CycleCard({ title, value, onTap, isDark, style = {} }) {
+function CycleCard({ title, value, icon, onTap, isDark, style = {} }) {
+  const fg = isDark ? 'rgba(255,255,255,.60)' : 'rgba(0,0,0,.58)';
   return (
     <motion.div
       onClick={onTap}
@@ -89,24 +144,22 @@ function CycleCard({ title, value, onTap, isDark, style = {} }) {
         gap: 5,
         cursor: 'pointer',
         userSelect: 'none',
-        fontSize: 13,
-        fontWeight: 500,
-        color: isDark ? 'rgba(255,255,255,.62)' : 'rgba(0,0,0,.60)',
         ...style,
       })}
     >
-      <span style={{ lineHeight: 1 }}>{title}</span>
+      {icon && <Icon type={icon} size={17} color={fg} />}
+      <span style={{ fontSize: 12, fontWeight: 600, color: fg, lineHeight: 1 }}>{title}</span>
       <SlideValue value={value} />
     </motion.div>
   );
 }
 
-// ── Zone 按钮条（blind 时出现）────────────────────────────────
+// ── Zone 按钮条 ───────────────────────────────────────────────
 function ZoneStrip({ zoneId, onChange, isDark }) {
   return (
-    <div style={{ flex: 1, display: 'flex', gap: 3 }}>
+    <div style={{ flex: 1, display: 'flex', gap: 4 }}>
       {ZONE_ITEMS.map(z => {
-        const active = zoneId === z.id;
+        const act = zoneId === z.id;
         return (
           <motion.button
             key={z.id}
@@ -114,23 +167,22 @@ function ZoneStrip({ zoneId, onChange, isDark }) {
             whileTap={{ scale: 0.90 }}
             style={{
               flex: 1, height: '100%',
-              background: active
-                ? (isDark ? 'rgba(255,255,255,.12)' : 'rgba(0,0,0,.08)')
+              background: act
+                ? (isDark ? 'rgba(255,255,255,.13)' : 'rgba(0,0,0,.08)')
                 : (isDark ? 'rgba(255,255,255,.04)' : 'rgba(0,0,0,.03)'),
-              border: `1px solid ${active
-                ? (isDark ? 'rgba(255,255,255,.16)' : 'rgba(0,0,0,.10)')
+              border: `1px solid ${act
+                ? (isDark ? 'rgba(255,255,255,.18)' : 'rgba(0,0,0,.10)')
                 : (isDark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.06)')}`,
-              borderRadius: 7,
+              borderRadius: 8,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               cursor: 'pointer',
             }}
           >
             <span style={{
-              fontSize: 10,
-              fontWeight: active ? 600 : 400,
+              fontSize: 11, fontWeight: act ? 600 : 400,
               color: isDark
-                ? (active ? 'rgba(255,255,255,.82)' : 'rgba(255,255,255,.30)')
-                : (active ? 'rgba(0,0,0,.72)'       : 'rgba(0,0,0,.28)'),
+                ? (act ? 'rgba(255,255,255,.85)' : 'rgba(255,255,255,.30)')
+                : (act ? 'rgba(0,0,0,.75)'       : 'rgba(0,0,0,.28)'),
               fontFamily: FONT_TEXT,
             }}>
               {z.label}
@@ -142,54 +194,37 @@ function ZoneStrip({ zoneId, onChange, isDark }) {
   );
 }
 
-// ── Space / Flow 卡 ───────────────────────────────────────────
-// 点击 → 循环切换 preset
-// 长按  → 进 L2
-//
-// 长按触发方式（原 repo 策略）：
-//   onContextMenu → iOS Safari / Android Chrome 长按都会触发 contextmenu
-//   timer 长按    → 桌面右键不触发时的 fallback
-function SpaceFlowCard({ title, value, onTap, onOpenL2, isDark }) {
+// ── Space / Flow 卡：点击循环，长按进 L2 ─────────────────────
+function SpaceFlowCard({ title, value, icon, onTap, onOpenL2, isDark }) {
   const timerRef = useRef(null);
   const firedRef = useRef(false);
 
-  // 长按进 L2（timer 方案 — Android fallback）
-  const startPress = useCallback(() => {
+  const down = useCallback(() => {
     firedRef.current = false;
-    timerRef.current = setTimeout(() => {
-      firedRef.current = true;
-      onOpenL2?.();
-    }, 500);
+    timerRef.current = setTimeout(() => { firedRef.current = true; onOpenL2?.(); }, 500);
   }, [onOpenL2]);
-
-  const endPress = useCallback(() => {
+  const up = useCallback(() => {
     clearTimeout(timerRef.current);
     if (!firedRef.current) onTap?.();
     firedRef.current = false;
   }, [onTap]);
-
-  const cancelPress = useCallback(() => {
-    clearTimeout(timerRef.current);
-    firedRef.current = false;
+  const cancel = useCallback(() => {
+    clearTimeout(timerRef.current); firedRef.current = false;
   }, []);
-
-  // contextmenu = iOS/Android 长按（最可靠）
-  const handleContextMenu = useCallback((e) => {
+  const ctxMenu = useCallback((e) => {
     e.preventDefault();
     clearTimeout(timerRef.current);
     firedRef.current = true;
     onOpenL2?.();
   }, [onOpenL2]);
 
+  const fg = isDark ? 'rgba(255,255,255,.60)' : 'rgba(0,0,0,.58)';
+
   return (
     <motion.div
-      onMouseDown={startPress}
-      onMouseUp={endPress}
-      onMouseLeave={cancelPress}
-      onTouchStart={startPress}
-      onTouchEnd={endPress}
-      onTouchCancel={cancelPress}
-      onContextMenu={handleContextMenu}
+      onMouseDown={down} onMouseUp={up} onMouseLeave={cancel}
+      onTouchStart={down} onTouchEnd={up} onTouchCancel={cancel}
+      onContextMenu={ctxMenu}
       whileTap={{ scale: 0.94, opacity: 0.75 }}
       transition={{ type: 'spring', stiffness: 420, damping: 32 }}
       style={cardStyle(isDark, {
@@ -198,12 +233,10 @@ function SpaceFlowCard({ title, value, onTap, onOpenL2, isDark }) {
         gap: 5,
         cursor: 'pointer',
         userSelect: 'none',
-        fontSize: 13,
-        fontWeight: 500,
-        color: isDark ? 'rgba(255,255,255,.62)' : 'rgba(0,0,0,.60)',
       })}
     >
-      <span style={{ lineHeight: 1 }}>{title}</span>
+      {icon && <Icon type={icon} size={17} color={fg} />}
+      <span style={{ fontSize: 12, fontWeight: 600, color: fg, lineHeight: 1 }}>{title}</span>
       <SlideValue value={value} />
     </motion.div>
   );
@@ -225,7 +258,7 @@ export function PracticeControlSheet({
 
   // ── 循环逻辑 ───────────────────────────────────────────────
   const modeIdx   = MODE_CYCLE.findIndex(m => m.id === practiceMode);
-  const modeLabel = MODE_CYCLE[modeIdx]?.label ?? 'Visual';
+  const currentMode = MODE_CYCLE[modeIdx] ?? MODE_CYCLE[0];
   const cycleMode = () =>
     onPracticeModeChange(MODE_CYCLE[(modeIdx + 1) % MODE_CYCLE.length].id);
 
@@ -240,22 +273,17 @@ export function PracticeControlSheet({
   const flIdx    = FLOW_CYCLE.indexOf(flowPreset ?? 'free');
   const cycleFlow = () => onFlowPreset(FLOW_CYCLE[(flIdx + 1) % FLOW_CYCLE.length]);
 
-  // ── 颜色 token（直接对应 HTML）────────────────────────────
-  const sheetBg   = isDark ? 'rgba(18,18,30,.97)'    : 'rgba(255,255,255,.98)';
-  const topBorder = isDark ? 'rgba(255,255,255,.10)'  : 'rgba(0,0,0,.10)';
-  const handleCol = isDark ? 'rgba(255,255,255,.20)'  : 'rgba(0,0,0,.15)';
+  // ── 颜色 ──────────────────────────────────────────────────
+  const sheetBg   = isDark ? 'rgba(18,18,30,.97)' : 'rgba(255,255,255,.98)';
+  const topBorder = isDark ? 'rgba(255,255,255,.10)' : 'rgba(0,0,0,.10)';
+  const handleCol = isDark ? 'rgba(255,255,255,.20)' : 'rgba(0,0,0,.15)';
 
   return (
     <AnimatePresence>
       {open && (
         <>
-          {/* tap-outside 关闭 */}
-          <div
-            onClick={onClose}
-            style={{ position: 'fixed', inset: 0, zIndex: 40 }}
-          />
+          <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
 
-          {/* ── L1 sheet ── */}
           <motion.div
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
@@ -265,7 +293,7 @@ export function PracticeControlSheet({
             dragConstraints={{ top: 0 }}
             dragElastic={0.05}
             onDragEnd={(_, info) => {
-              if (info.offset.y > 55 || info.velocity.y > 280) onClose();
+              if (info.offset.y > 60 || info.velocity.y > 280) onClose();
             }}
             style={{
               position: 'fixed',
@@ -286,31 +314,27 @@ export function PracticeControlSheet({
             <div style={{
               width: 28, height: 3, borderRadius: 2,
               background: handleCol,
-              margin: '8px auto 4px',
+              margin: '10px auto 5px',
               flexShrink: 0,
             }} />
 
-            {/* ── top row：Mode 左列 + Intervals 右列 ── */}
-            {/* 高度加高至 96px（原 HTML 75px，增加可操作面积）*/}
+            {/* ── Top row: Mode (left) + Intervals (right) ── */}
             <div style={{
-              display: 'flex', gap: 5,
-              padding: '4px 10px',
-              height: 96,
+              display: 'flex', gap: 6,
+              padding: '0 12px',
+              height: 110,
               flexShrink: 0,
             }}>
-              {/* 左列 flex:.46 — Mode (flex:3) + Zone (flex:1) */}
-              <div style={{ flex: 0.46, display: 'flex', flexDirection: 'column', gap: 4 }}>
-
-                {/* Mode 卡 — flex:3 */}
+              {/* Left col: Mode (flex:3) + Zone (flex:1) */}
+              <div style={{ flex: 0.46, display: 'flex', flexDirection: 'column', gap: 5 }}>
                 <CycleCard
                   title="Mode"
-                  value={modeLabel}
+                  value={currentMode.label}
+                  icon={currentMode.icon}
                   onTap={cycleMode}
                   isDark={isDark}
                   style={{ flex: 3 }}
                 />
-
-                {/* Zone — flex:1, blind ↔ 占位 */}
                 <div style={{ flex: 1, display: 'flex' }}>
                   <AnimatePresence mode="wait" initial={false}>
                     {isBlind ? (
@@ -332,9 +356,8 @@ export function PracticeControlSheet({
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.13 }}
                         style={cardStyle(isDark, {
-                          flex: 1,
-                          fontSize: 10,
-                          color: isDark ? 'rgba(255,255,255,.28)' : 'rgba(0,0,0,.26)',
+                          flex: 1, fontSize: 10,
+                          color: isDark ? 'rgba(255,255,255,.28)' : 'rgba(0,0,0,.24)',
                         })}
                       >
                         Zone
@@ -344,11 +367,12 @@ export function PracticeControlSheet({
                 </div>
               </div>
 
-              {/* 右列 flex:.54 — Intervals 全高 */}
+              {/* Right col: Intervals full height */}
               <div style={{ flex: 0.54 }}>
                 <CycleCard
                   title="Intervals"
                   value={ivLabel}
+                  icon="music"
                   onTap={cycleIv}
                   isDark={isDark}
                   style={{ height: '100%' }}
@@ -356,17 +380,17 @@ export function PracticeControlSheet({
               </div>
             </div>
 
-            {/* ── bottom row：Space | Flow ── */}
-            {/* 高度加高至 80px */}
+            {/* ── Bottom row: Space + Flow ── */}
             <div style={{
-              display: 'flex', gap: 5,
-              padding: '4px 10px 12px',
-              height: 80,
+              display: 'flex', gap: 6,
+              padding: '6px 12px 16px',
+              height: 90,
               flexShrink: 0,
             }}>
               <SpaceFlowCard
                 title="Space"
                 value={SPACE_LABEL[spacePresetId] ?? 'Full board'}
+                icon="grid"
                 onTap={cycleSpace}
                 onOpenL2={onOpenSpaceL2}
                 isDark={isDark}
@@ -374,14 +398,14 @@ export function PracticeControlSheet({
               <SpaceFlowCard
                 title="Flow"
                 value={FLOW_LABEL[flowPreset] ?? 'Free'}
+                icon="flow"
                 onTap={cycleFlow}
                 onOpenL2={onOpenFlowL2}
                 isDark={isDark}
               />
             </div>
 
-            {/* 注意：TabBar 不在 L1 里，由 App 层统一管理 */}
-
+            {/* 无 TabBar — 由 App 层统一管理 */}
           </motion.div>
         </>
       )}
