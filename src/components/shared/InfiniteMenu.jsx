@@ -1,179 +1,209 @@
 // components/shared/InfiniteMenu.jsx
 //
-// React Bits InfiniteMenu — 完整手写实现
-// 原始设计: https://reactbits.dev/components/infinite-menu
+// React Bits InfiniteMenu 风格 — 纯 CSS 3D 实现
+// 不依赖 three.js，用 perspective + rotateX 模拟圆柱体滚动
 //
-// Three.js 圆柱体滚动菜单：
-//   - N 个 item → N 个面，各自贴 canvas texture
-//   - 拖拽 → 旋转圆柱（从内侧看）
-//   - 松手 → snap 到最近面 + 惯性
-//   - 点击 → onSelect(item, index)
+// 效果：
+//   - N 个 item 排列在虚拟圆柱面上
+//   - 手指/鼠标上下拖拽 → 圆柱旋转
+//   - 松手 → 惯性 + snap 到最近项
+//   - 中心项完整显示，上下项 fade + scale
 
-import { useEffect, useRef } from 'react';
-import * as THREE from 'three';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 
-// canvas texture: 大字标题 + 小字副标题
-function makeTexture(title, description, textColor = '#ffffff') {
-  const SIZE = 512;
-  const cv   = document.createElement('canvas');
-  cv.width   = SIZE;
-  cv.height  = SIZE;
-  const ctx  = cv.getContext('2d');
-
-  // transparent background
-  ctx.clearRect(0, 0, SIZE, SIZE);
-
-  // title
-  ctx.fillStyle    = textColor;
-  ctx.textAlign    = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.font         = `bold 80px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif`;
-  ctx.fillText(title, SIZE / 2, description ? SIZE / 2 - 36 : SIZE / 2);
-
-  // description
-  if (description) {
-    ctx.fillStyle = 'rgba(255,255,255,0.42)';
-    ctx.font      = `42px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif`;
-    ctx.fillText(description, SIZE / 2, SIZE / 2 + 46);
-  }
-
-  const t = new THREE.CanvasTexture(cv);
-  t.needsUpdate = true;
-  return t;
-}
+const ITEM_HEIGHT = 72;   // px, 每项高度
+const PERSPECTIVE = 600;  // px, 透视距离
+const VISIBLE     = 5;    // 显示几项（奇数，中心 = 选中）
 
 export default function InfiniteMenu({ items = [], onSelect, scale = 1 }) {
-  const wrapRef = useRef(null);
+  const [offset, setOffset] = useState(0);       // 当前偏移（正数=向下滚）
+  const dragging  = useRef(false);
+  const startY    = useRef(0);
+  const startOff  = useRef(0);
+  const velRef    = useRef(0);
+  const lastY     = useRef(0);
+  const rafRef    = useRef(null);
+  const didDrag   = useRef(false);
 
-  useEffect(() => {
-    const el = wrapRef.current;
-    if (!el || !items.length) return;
+  const N = items.length;
+  if (!N) return null;
 
-    const W = el.clientWidth  || 300;
-    const H = el.clientHeight || 400;
-    const N = items.length;
+  // snap to nearest item index
+  const snap = useCallback((off, vel) => {
+    // inertia
+    let target = off + vel * 6;
+    // round to nearest item
+    target = Math.round(target / ITEM_HEIGHT) * ITEM_HEIGHT;
+    // clamp (optional: allow infinite wrap)
+    // target = Math.max(-(N-1)*ITEM_HEIGHT, Math.min(0, target));
 
-    // ── Scene ────────────────────────────────────────────────
-    const scene  = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 100);
-    camera.position.z = 5;
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setSize(W, H);
-    renderer.setClearColor(0, 0);
-    el.appendChild(renderer.domElement);
-
-    // ── Cylinder geometry (open-ended, inside-out) ────────────
-    const R   = 2.0 * scale;
-    const HH  = 2.8 * scale;
-    const geo = new THREE.CylinderGeometry(R, R, HH, N, 1, true);
-    geo.clearGroups();
-    for (let i = 0; i < N; i++) geo.addGroup(i * 6, 6, i);
-
-    const mats = items.map((item) =>
-      new THREE.MeshBasicMaterial({
-        map:         makeTexture(item.title, item.description, item.color ?? '#fff'),
-        transparent: true,
-        side:        THREE.BackSide,
-        depthWrite:  false,
-        alphaTest:   0.01,
-      })
-    );
-
-    const mesh = new THREE.Mesh(geo, mats);
-    scene.add(mesh);
-
-    // ── Drag state ────────────────────────────────────────────
-    const step   = (Math.PI * 2) / N;  // angle between faces
-    let rotY     = 0;   // current rotation
-    let targetY  = 0;   // target after snap
-    let dragging = false;
-    let lastY    = 0;
-    let vel      = 0;
-    let didDrag  = false;
-
-    const getY = (e) => (e.touches ? e.touches[0].clientY : e.clientY);
-
-    const onStart = (e) => {
-      dragging = true;
-      didDrag  = false;
-      lastY    = getY(e);
-      vel      = 0;
+    const animate = () => {
+      setOffset(prev => {
+        const diff = target - prev;
+        if (Math.abs(diff) < 0.3) return target;
+        rafRef.current = requestAnimationFrame(animate);
+        return prev + diff * 0.18;
+      });
     };
+    rafRef.current = requestAnimationFrame(animate);
+  }, [N]);
 
-    const onMove = (e) => {
-      if (!dragging) return;
-      const y  = getY(e);
-      const dy = y - lastY;
-      lastY    = y;
-      vel      = dy;
-      if (Math.abs(dy) > 1) didDrag = true;
-      targetY -= dy * 0.009;
-    };
+  const getEventY = (e) => (e.touches ? e.touches[0].clientY : e.clientY);
 
-    const onEnd = () => {
-      if (!dragging) return;
-      dragging = false;
-      targetY -= vel * 0.05;            // inertia
-      targetY  = Math.round(targetY / step) * step;  // snap
-    };
+  const onStart = useCallback((e) => {
+    cancelAnimationFrame(rafRef.current);
+    dragging.current = true;
+    didDrag.current  = false;
+    startY.current   = getEventY(e);
+    startOff.current = offset;
+    lastY.current    = getEventY(e);
+    velRef.current   = 0;
+  }, [offset]);
 
-    const onTap = () => {
-      if (didDrag) return;
-      // which face is centred (facing -z = towards viewer)
-      const raw = (-mesh.rotation.y / step);
-      const idx = ((Math.round(raw) % N) + N) % N;
-      onSelect?.(items[idx], idx);
-    };
+  const onMove = useCallback((e) => {
+    if (!dragging.current) return;
+    const y  = getEventY(e);
+    const dy = y - lastY.current;
+    lastY.current = y;
+    velRef.current = dy;
+    if (Math.abs(dy) > 1) didDrag.current = true;
+    const newOff = startOff.current + (y - startY.current);
+    setOffset(newOff);
+  }, []);
 
-    const cvs = renderer.domElement;
-    cvs.addEventListener('mousedown',  onStart);
-    cvs.addEventListener('mousemove',  onMove);
-    cvs.addEventListener('mouseup',    onEnd);
-    cvs.addEventListener('mouseleave', onEnd);
-    cvs.addEventListener('touchstart', onStart, { passive: true });
-    cvs.addEventListener('touchmove',  onMove,  { passive: true });
-    cvs.addEventListener('touchend',   onEnd);
-    cvs.addEventListener('click',      onTap);
+  const onEnd = useCallback(() => {
+    if (!dragging.current) return;
+    dragging.current = false;
+    snap(offset, velRef.current);
+  }, [offset, snap]);
 
-    // ── Render loop ───────────────────────────────────────────
-    let raf;
-    const tick = () => {
-      raf = requestAnimationFrame(tick);
-      rotY += (targetY - rotY) * 0.14;
-      mesh.rotation.y = rotY;
-      renderer.render(scene, camera);
-    };
-    tick();
+  const onTap = useCallback(() => {
+    if (didDrag.current) return;
+    // 当前中心项
+    const idx = ((-Math.round(offset / ITEM_HEIGHT)) % N + N) % N;
+    onSelect?.(items[idx], idx);
+  }, [offset, N, items, onSelect]);
 
-    // ── Resize ────────────────────────────────────────────────
-    const ro = new ResizeObserver(() => {
-      const w = el.clientWidth;
-      const h = el.clientHeight;
-      renderer.setSize(w, h);
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-    });
-    ro.observe(el);
+  useEffect(() => () => cancelAnimationFrame(rafRef.current), []);
 
-    return () => {
-      cancelAnimationFrame(raf);
-      ro.disconnect();
-      cvs.removeEventListener('mousedown',  onStart);
-      cvs.removeEventListener('mousemove',  onMove);
-      cvs.removeEventListener('mouseup',    onEnd);
-      cvs.removeEventListener('mouseleave', onEnd);
-      cvs.removeEventListener('touchstart', onStart);
-      cvs.removeEventListener('touchmove',  onMove);
-      cvs.removeEventListener('touchend',   onEnd);
-      cvs.removeEventListener('click',      onTap);
-      geo.dispose();
-      mats.forEach((m) => { m.map?.dispose(); m.dispose(); });
-      renderer.dispose();
-      if (el.contains(cvs)) el.removeChild(cvs);
-    };
-  }, [items, onSelect, scale]);
+  // 计算每项的 3D 位置
+  // 圆柱半径 r, 每项角度 = 360/N
+  const r         = (ITEM_HEIGHT * N) / (2 * Math.PI);
+  const angleStep = 360 / N;
 
-  return <div ref={wrapRef} style={{ width: '100%', height: '100%' }} />;
+  // 当前旋转角 (offset → degrees)
+  const rotX = (offset / ITEM_HEIGHT) * angleStep;
+
+  return (
+    <div
+      onMouseDown={onStart}
+      onMouseMove={onMove}
+      onMouseUp={onEnd}
+      onMouseLeave={onEnd}
+      onTouchStart={onStart}
+      onTouchMove={onMove}
+      onTouchEnd={onEnd}
+      onClick={onTap}
+      style={{
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        perspective: PERSPECTIVE,
+        cursor: 'grab',
+        userSelect: 'none',
+        overflow: 'hidden',
+      }}
+    >
+      {/* 圆柱容器 */}
+      <div
+        style={{
+          position: 'relative',
+          width: '100%',
+          height: ITEM_HEIGHT * scale,
+          transformStyle: 'preserve-3d',
+          transform: `rotateX(${rotX}deg) scale(${scale})`,
+          transition: dragging.current ? 'none' : undefined,
+        }}
+      >
+        {items.map((item, i) => {
+          const angle      = angleStep * i;
+          // 每项与当前中心的角度差（用于淡化）
+          const angleDiff  = ((angle - rotX) % 360 + 360) % 360;
+          const normalised = angleDiff > 180 ? angleDiff - 360 : angleDiff;
+          const absAngle   = Math.abs(normalised);
+          // 超过这个角度就完全不可见
+          const maxVisible = angleStep * (VISIBLE / 2);
+          const opacity    = absAngle > maxVisible ? 0 : 1 - (absAngle / maxVisible) * 0.7;
+          const isCenter   = absAngle < angleStep * 0.5;
+
+          return (
+            <div
+              key={item.id ?? i}
+              style={{
+                position:  'absolute',
+                top:       '50%',
+                left:      0,
+                right:     0,
+                height:    ITEM_HEIGHT,
+                marginTop: -ITEM_HEIGHT / 2,
+                display:   'flex',
+                flexDirection:  'column',
+                alignItems:     'center',
+                justifyContent: 'center',
+                backfaceVisibility: 'hidden',
+                transform: `rotateX(${-angle}deg) translateZ(${r}px)`,
+                opacity,
+                transition: 'opacity 0.1s',
+                gap: 4,
+              }}
+            >
+              <span style={{
+                fontSize:   isCenter ? 22 : 16,
+                fontWeight: isCenter ? 700 : 400,
+                color:      isCenter ? '#fff' : 'rgba(255,255,255,0.4)',
+                lineHeight: 1,
+                transition: 'all 0.15s',
+                fontFamily: '-apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif',
+              }}>
+                {item.title}
+              </span>
+              {item.description && (
+                <span style={{
+                  fontSize: isCenter ? 11 : 9,
+                  color:    isCenter ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.2)',
+                  lineHeight: 1,
+                  transition: 'all 0.15s',
+                  fontFamily: '-apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif',
+                }}>
+                  {item.description}
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* 选中项高亮线 */}
+      <div style={{
+        position:  'absolute',
+        left:      '10%',
+        right:     '10%',
+        height:    1,
+        background: 'rgba(255,255,255,0.12)',
+        top:       `calc(50% - ${ITEM_HEIGHT * scale / 2}px)`,
+        pointerEvents: 'none',
+      }} />
+      <div style={{
+        position:  'absolute',
+        left:      '10%',
+        right:     '10%',
+        height:    1,
+        background: 'rgba(255,255,255,0.12)',
+        top:       `calc(50% + ${ITEM_HEIGHT * scale / 2}px)`,
+        pointerEvents: 'none',
+      }} />
+    </div>
+  );
 }
