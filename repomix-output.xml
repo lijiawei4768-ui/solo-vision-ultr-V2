@@ -755,77 +755,6 @@ export function StatsSheet({ open, onClose, statsRef }) {
 }
 </file>
 
-<file path="src/components/intervals/l3/FlowEditorL3.jsx">
-// components/intervals/l3/FlowEditorL3.jsx  — Batch D
-// 完整 Flow 设置：顺序 + 每弦数量
-import React, { useContext, useState } from 'react';
-import { motion } from 'framer-motion';
-import { ThemeContext } from '../../../contexts';
-import { DT, FONT_TEXT, FONT_MONO } from '../../../theme';
-import { L3EditorShell } from './L3EditorShell';
-import { SPRINGS_IV } from '../../../motion/springs';
-import { FLOW_PRESETS } from '../../../trainers/intervals/constants';
-
-function useIsDark() { return (useContext(ThemeContext)?.dark) ?? true; }
-
-export function FlowEditorL3({ isOpen, onClose, flowPreset, positionsPerString, onFlowSettings }) {
-  const isDark = useIsDark();
-  const [order, setOrder]    = useState(flowPreset ?? 'free');
-  const [pps,   setPps]      = useState(positionsPerString ?? 3);
-
-  const titleC   = isDark ? 'rgba(235,235,245,0.88)' : 'rgba(0,0,0,0.82)';
-  const mutedC   = isDark ? 'rgba(235,235,245,0.38)' : 'rgba(0,0,0,0.36)';
-  const line     = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
-  const sliderBg = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)';
-
-  return (
-    <L3EditorShell isOpen={isOpen} title="Flow 节奏" onClose={onClose} onApply={() => onFlowSettings?.({ order, positionsPerString: pps })}>
-      {/* Order */}
-      <div style={{ paddingBottom:20, borderBottom:`0.5px solid ${line}`, marginBottom:20 }}>
-        <div style={{ fontSize:11, fontWeight:600, color:mutedC, fontFamily:FONT_TEXT, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:12 }}>顺序模式</div>
-        {FLOW_PRESETS.map(p => {
-          const act = order === p.id;
-          return (
-            <motion.div
-              key={p.id}
-              onClick={() => setOrder(p.id)}
-              whileTap={{ opacity:0.7 }}
-              style={{
-                display:'flex', alignItems:'center', justifyContent:'space-between',
-                padding:'12px 14px', borderRadius:12, marginBottom:7, cursor:'pointer',
-                background: act ? (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)') : 'transparent',
-                border:`0.5px solid ${act ? (isDark ? 'rgba(255,255,255,0.16)' : 'rgba(0,0,0,0.12)') : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)')}`,
-              }}
-            >
-              <div>
-                <div style={{ fontSize:15, fontWeight: act ? 600 : 400, color: act ? titleC : mutedC, fontFamily:FONT_TEXT }}>{p.label}</div>
-                <div style={{ fontSize:11, color:mutedC, fontFamily:FONT_TEXT, marginTop:2 }}>{p.summary}</div>
-              </div>
-              {act && <svg width={14} height={14} viewBox="0 0 14 14" fill="none"><path d="M2.5 7l3.5 3.5 5.5-7" stroke={isDark ? 'rgba(235,235,245,0.65)' : 'rgba(0,0,0,0.50)'} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"/></svg>}
-            </motion.div>
-          );
-        })}
-      </div>
-
-      {/* Positions per string */}
-      <div>
-        <div style={{ fontSize:11, fontWeight:600, color:mutedC, fontFamily:FONT_TEXT, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:12 }}>每弦题数</div>
-        <div style={{ display:'flex', alignItems:'center', gap:14 }}>
-          <span style={{ fontSize:22, fontWeight:600, color:titleC, fontFamily:FONT_MONO, width:28 }}>{pps}</span>
-          <input
-            type="range" min={1} max={8} value={pps}
-            onChange={e => setPps(+e.target.value)}
-            style={{ flex:1, height:3, appearance:'none', WebkitAppearance:'none', background:sliderBg, borderRadius:2, cursor:'pointer' }}
-          />
-          <span style={{ fontSize:13, color:mutedC, fontFamily:FONT_MONO }}>8</span>
-        </div>
-        <div style={{ fontSize:11, color:mutedC, fontFamily:FONT_TEXT, marginTop:8 }}>每根弦练习 {pps} 道题后换下一根弦</div>
-      </div>
-    </L3EditorShell>
-  );
-}
-</file>
-
 <file path="src/components/intervals/l3/IntervalsEditorL3.jsx">
 // components/intervals/l3/IntervalsEditorL3.jsx  — Batch D
 // 完整 Intervals 设置：11 音程完整多选 + 预设管理
@@ -923,213 +852,6 @@ export function IntervalsEditorL3({ isOpen, onClose, selectedIntervals, onInterv
           })}
         </div>
       </div>
-    </L3EditorShell>
-  );
-}
-</file>
-
-<file path="src/components/intervals/l3/L3EditorShell.jsx">
-// components/intervals/l3/L3EditorShell.jsx  — Batch D
-//
-// 所有 L3 编辑器的通用外壳 (Page push 进入)
-// 顶部：← 返回 + 标题 + 完成
-// 内容：children (ScrollArea)
-// 底部：应用按钮
-import React, { useContext } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { ThemeContext } from '../../../contexts';
-import { DT, FONT_TEXT, FONT_DISPLAY } from '../../../theme';
-import { SPRINGS_IV } from '../../../motion/springs';
-
-function useIsDark() { return (useContext(ThemeContext)?.dark) ?? true; }
-
-export function L3EditorShell({ isOpen, title, onClose, onApply, children }) {
-  const isDark = useIsDark();
-
-  const bg         = isDark ? '#0a0a0e' : '#F2F2F7';
-  const headerBg   = isDark ? 'rgba(10,10,14,0.95)' : 'rgba(242,242,247,0.95)';
-  const border     = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
-  const titleC     = isDark ? 'rgba(235,235,245,0.90)' : 'rgba(0,0,0,0.84)';
-  const backC      = isDark ? 'rgba(235,235,245,0.52)' : 'rgba(0,0,0,0.46)';
-  const applyBg    = isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.08)';
-  const applyBorder= isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.13)';
-
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          initial={{ x: '100%' }}
-          animate={{ x: 0 }}
-          exit={{ x: '100%' }}
-          transition={SPRINGS_IV.pagePush}
-          style={{
-            position: 'fixed', inset: 0, zIndex: 70,
-            background: bg,
-            display: 'flex', flexDirection: 'column',
-          }}
-        >
-          {/* Top bar */}
-          <div style={{
-            height: 52, display: 'flex', alignItems: 'center',
-            justifyContent: 'space-between', padding: '0 16px',
-            background: headerBg,
-            borderBottom: `0.5px solid ${border}`,
-            backdropFilter: 'blur(12px)',
-            flexShrink: 0,
-          }}>
-            <motion.button
-              onClick={onClose}
-              whileTap={{ scale: 0.90 }}
-              style={{ display:'flex', alignItems:'center', gap:4, background:'none', border:'none', cursor:'pointer', padding:'4px 0' }}
-            >
-              <svg width={16} height={16} viewBox="0 0 16 16" fill="none">
-                <path d="M10 13L5 8l5-5" stroke={backC} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              <span style={{ fontSize:14, color:backC, fontFamily:FONT_TEXT }}>返回</span>
-            </motion.button>
-
-            <span style={{ fontSize:16, fontWeight:600, color:titleC, fontFamily:FONT_DISPLAY }}>
-              {title}
-            </span>
-
-            <motion.button
-              onClick={() => { onApply?.(); onClose(); }}
-              whileTap={{ scale: 0.92 }}
-              style={{
-                padding:'5px 14px', borderRadius:16,
-                background: applyBg, border:`0.5px solid ${applyBorder}`,
-                cursor:'pointer',
-              }}
-            >
-              <span style={{ fontSize:14, fontWeight:500, color:titleC, fontFamily:FONT_TEXT }}>完成</span>
-            </motion.button>
-          </div>
-
-          {/* Scrollable content */}
-          <div style={{ flex:1, overflowY:'auto', WebkitOverflowScrolling:'touch', padding:'20px 16px' }}>
-            {children}
-          </div>
-
-          {/* Bottom apply */}
-          <div style={{
-            height:56, display:'flex', alignItems:'center', justifyContent:'center',
-            borderTop:`0.5px solid ${border}`,
-            paddingBottom:'env(safe-area-inset-bottom,0px)',
-            background: headerBg,
-            flexShrink:0,
-          }}>
-            <motion.button
-              onClick={() => { onApply?.(); onClose(); }}
-              whileTap={{ scale: 0.96 }}
-              style={{
-                width:'80%', maxWidth:320, height:40, borderRadius:12,
-                background: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.08)',
-                border:`0.5px solid ${applyBorder}`, cursor:'pointer',
-              }}
-            >
-              <span style={{ fontSize:15, fontWeight:600, color:titleC, fontFamily:FONT_DISPLAY }}>应用</span>
-            </motion.button>
-          </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
-}
-</file>
-
-<file path="src/components/intervals/l3/SpaceEditorL3.jsx">
-// components/intervals/l3/SpaceEditorL3.jsx  — Batch D
-// 完整 Space 设置：品位范围滑杆 + 弦选择 + 预设管理
-import React, { useContext, useState } from 'react';
-import { motion } from 'framer-motion';
-import { ThemeContext } from '../../../contexts';
-import { DT, FONT_TEXT, FONT_MONO } from '../../../theme';
-import { L3EditorShell } from './L3EditorShell';
-import { SPRINGS_IV } from '../../../motion/springs';
-
-const STRING_NAMES = ['E2','A2','D3','G3','B3','e4'];
-function useIsDark() { return (useContext(ThemeContext)?.dark) ?? true; }
-
-function Row({ label, isDark, children }) {
-  const labelC = isDark ? 'rgba(235,235,245,0.44)' : 'rgba(0,0,0,0.42)';
-  const line   = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
-  return (
-    <div style={{ paddingBottom:20, borderBottom:`0.5px solid ${line}`, marginBottom:20 }}>
-      <div style={{ fontSize:11, fontWeight:600, color:labelC, fontFamily:FONT_TEXT, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:12 }}>
-        {label}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-export function SpaceEditorL3({ isOpen, onClose, spaceSettings, onSpaceSettings }) {
-  const isDark = useIsDark();
-  const [fretMin, setFretMin] = useState(spaceSettings?.fretRange?.min ?? 0);
-  const [fretMax, setFretMax] = useState(spaceSettings?.fretRange?.max ?? 12);
-  const [strings, setStrings] = useState(spaceSettings?.strings ?? [true,true,true,true,true,true]);
-
-  const titleC   = isDark ? 'rgba(235,235,245,0.88)' : 'rgba(0,0,0,0.82)';
-  const sliderBg = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)';
-
-  const toggleString = (i) => setStrings(prev => prev.map((v,j) => j===i ? !v : v));
-
-  const apply = () => {
-    onSpaceSettings?.({ fretRange:{ min:fretMin, max:fretMax }, strings });
-  };
-
-  return (
-    <L3EditorShell isOpen={isOpen} title="Space 音域" onClose={onClose} onApply={apply}>
-      {/* Fret range */}
-      <Row label="品位范围" isDark={isDark}>
-        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-          <span style={{ fontSize:13, color:titleC, fontFamily:FONT_MONO, width:24 }}>{fretMin}</span>
-          <input
-            type="range" min={0} max={11} value={fretMin}
-            onChange={e => { const v = +e.target.value; if (v < fretMax) setFretMin(v); }}
-            style={{ flex:1, height:3, appearance:'none', WebkitAppearance:'none', background:sliderBg, borderRadius:2, cursor:'pointer' }}
-          />
-          <span style={{ fontSize:13, color:titleC, fontFamily:FONT_MONO, width:24, textAlign:'right' }}>12</span>
-        </div>
-        <div style={{ display:'flex', alignItems:'center', gap:12, marginTop:10 }}>
-          <span style={{ fontSize:13, color:titleC, fontFamily:FONT_MONO, width:24 }}>{fretMax}</span>
-          <input
-            type="range" min={1} max={12} value={fretMax}
-            onChange={e => { const v = +e.target.value; if (v > fretMin) setFretMax(v); }}
-            style={{ flex:1, height:3, appearance:'none', WebkitAppearance:'none', background:sliderBg, borderRadius:2, cursor:'pointer' }}
-          />
-          <span style={{ fontSize:13, color:isDark ? 'rgba(235,235,245,0.30)' : 'rgba(0,0,0,0.28)', fontFamily:FONT_MONO, width:24, textAlign:'right' }}>12</span>
-        </div>
-        <div style={{ fontSize:11, color:isDark ? 'rgba(235,235,245,0.28)' : 'rgba(0,0,0,0.28)', fontFamily:FONT_TEXT, marginTop:8 }}>
-          当前范围：品位 {fretMin} – {fretMax}（共 {fretMax - fretMin + 1} 格）
-        </div>
-      </Row>
-
-      {/* String selection */}
-      <Row label="弦选择" isDark={isDark}>
-        <div style={{ display:'flex', gap:8 }}>
-          {STRING_NAMES.map((s,i) => {
-            const act = strings[i];
-            return (
-              <motion.button
-                key={i}
-                onClick={() => toggleString(i)}
-                whileTap={{ scale: 0.88 }}
-                transition={SPRINGS_IV.buttonPress}
-                style={{
-                  flex:1, height:44, borderRadius:10, cursor:'pointer',
-                  background: act ? (isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.09)') : (isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)'),
-                  border:`0.5px solid ${act ? (isDark ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.16)') : (isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)')}`,
-                }}
-              >
-                <span style={{ fontSize:11, fontWeight: act ? 600 : 400, color: act ? titleC : (isDark ? 'rgba(235,235,245,0.30)' : 'rgba(0,0,0,0.30)'), fontFamily:FONT_MONO }}>
-                  {s}
-                </span>
-              </motion.button>
-            );
-          })}
-        </div>
-      </Row>
     </L3EditorShell>
   );
 }
@@ -17803,316 +17525,562 @@ export function FlowEditorL2({ isOpen, onClose, flowPreset, onFlowChange, onOpen
 }
 </file>
 
-<file path="src/components/intervals/l2/L2Overlay.jsx">
-// components/intervals/l2/L2Overlay.jsx
-//
-// 修复 L2 偏移问题：
-//
-// 旧版错误：
-//   position:fixed + top:50% + left:50% + transform:translate(-50%,-50%)
-//   → framer-motion 的 animate={{ scale, y }} 会覆盖 CSS transform
-//   → translate(-50%,-50%) 丢失 → 面板偏到右下角
-//
-// 新版正确：
-//   backdrop = position:fixed inset:0，自身是 flexbox 居中容器
-//   panel    = 普通 div（不用 transform 定位）
-//   framer-motion 只动画 opacity + scale，不影响位置
+<file path="src/components/intervals/l3/FlowEditorL3.jsx">
+// components/intervals/l3/FlowEditorL3.jsx
+// Fix 4: L3 深度补强 — 新增 BPM、复音罚则、方向锁、节奏细分
+
+import React, { useContext, useState } from 'react';
+import { motion } from 'framer-motion';
+import { ThemeContext } from '../../../contexts';
+import { FONT_TEXT, FONT_MONO } from '../../../theme';
+import { L3EditorShell } from './L3EditorShell';
+import { SPRINGS_IV } from '../../../motion/springs';
+import { FLOW_PRESETS } from '../../../trainers/intervals/constants';
+
+function useIsDark() { return (useContext(ThemeContext)?.dark) ?? true; }
+
+function Section({ label, isDark, children }) {
+  const labelC = isDark ? 'rgba(235,235,245,0.38)' : 'rgba(0,0,0,0.36)';
+  const line   = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+  return (
+    <div style={{ paddingBottom: 22, borderBottom: `0.5px solid ${line}`, marginBottom: 22 }}>
+      <div style={{
+        fontSize: 10, fontWeight: 600, color: labelC, fontFamily: FONT_TEXT,
+        textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 14,
+      }}>
+        {label}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function ToggleRow({ label, sub, value, onChange, isDark }) {
+  const titleC  = isDark ? 'rgba(235,235,245,0.84)' : 'rgba(0,0,0,0.80)';
+  const subC    = isDark ? 'rgba(235,235,245,0.36)' : 'rgba(0,0,0,0.36)';
+  const trackOn = isDark ? 'rgba(255,255,255,0.20)' : 'rgba(0,0,0,0.18)';
+  const trackOff= isDark ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.08)';
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 0' }}>
+      <div>
+        <div style={{ fontSize: 14, color: titleC, fontFamily: FONT_TEXT }}>{label}</div>
+        {sub && <div style={{ fontSize: 11, color: subC, fontFamily: FONT_TEXT, marginTop: 2 }}>{sub}</div>}
+      </div>
+      <motion.div
+        onClick={() => onChange(!value)}
+        animate={{ background: value ? trackOn : trackOff }}
+        style={{
+          width: 44, height: 26, borderRadius: 13, position: 'relative',
+          cursor: 'pointer', flexShrink: 0,
+          border: `0.5px solid ${isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.10)'}`,
+        }}
+      >
+        <motion.div
+          animate={{ x: value ? 20 : 2 }}
+          transition={{ type: 'spring', stiffness: 480, damping: 28 }}
+          style={{
+            position: 'absolute', top: 3, width: 20, height: 20, borderRadius: 10,
+            background: isDark ? 'rgba(255,255,255,0.80)' : 'rgba(0,0,0,0.65)',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.25)',
+          }}
+        />
+      </motion.div>
+    </div>
+  );
+}
+
+export function FlowEditorL3({ isOpen, onClose, flowPreset, positionsPerString, onFlowSettings }) {
+  const isDark = useIsDark();
+  const [order,         setOrder]        = useState(flowPreset ?? 'free');
+  const [pps,           setPps]          = useState(positionsPerString ?? 3);
+  const [bpm,           setBpm]          = useState(0);    // 0 = 不限速
+  const [repeatPenalty, setRepeatPenalty]= useState(true); // 避免重复上一题
+  const [dirLock,       setDirLock]      = useState(false);// 锁定方向
+  const [groupByString, setGroupByString]= useState(false);// 按弦分组
+
+  const titleC   = isDark ? 'rgba(235,235,245,0.88)' : 'rgba(0,0,0,0.82)';
+  const mutedC   = isDark ? 'rgba(235,235,245,0.38)' : 'rgba(0,0,0,0.36)';
+  const line     = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+  const sliderBg = isDark ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.08)';
+
+  const BPM_VALS = [0, 40, 60, 80, 100, 120];
+
+  return (
+    <L3EditorShell isOpen={isOpen} title="Flow 节奏" onClose={onClose}
+      onApply={() => onFlowSettings?.({ order, positionsPerString: pps, bpm, repeatPenalty, directionLock: dirLock, groupByString })}
+    >
+
+      {/* 顺序模式 */}
+      <Section label="顺序模式" isDark={isDark}>
+        {FLOW_PRESETS.map(p => {
+          const act = order === p.id;
+          return (
+            <motion.div key={p.id} onClick={() => setOrder(p.id)} whileTap={{ opacity: 0.7 }}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '12px 14px', borderRadius: 12, marginBottom: 7, cursor: 'pointer',
+                background: act ? (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)') : 'transparent',
+                border: `0.5px solid ${act ? (isDark ? 'rgba(255,255,255,0.16)' : 'rgba(0,0,0,0.12)') : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)')}`,
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 15, fontWeight: act ? 600 : 400, color: act ? titleC : mutedC, fontFamily: FONT_TEXT }}>{p.label}</div>
+                <div style={{ fontSize: 11, color: mutedC, fontFamily: FONT_TEXT, marginTop: 2 }}>{p.summary}</div>
+              </div>
+              {act && (
+                <svg width={14} height={14} viewBox="0 0 14 14" fill="none">
+                  <path d="M2.5 7l3.5 3.5 5.5-7" stroke={isDark ? 'rgba(235,235,245,0.65)' : 'rgba(0,0,0,0.50)'} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              )}
+            </motion.div>
+          );
+        })}
+      </Section>
+
+      {/* 每弦题数 */}
+      <Section label="每弦题数" isDark={isDark}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <span style={{ fontSize: 28, fontWeight: 700, color: titleC, fontFamily: FONT_MONO, minWidth: 36 }}>{pps}</span>
+          <input type="range" min={1} max={10} value={pps}
+            onChange={e => setPps(+e.target.value)}
+            style={{ flex: 1, height: 3, appearance: 'none', WebkitAppearance: 'none', background: sliderBg, borderRadius: 2, cursor: 'pointer' }}
+          />
+          <span style={{ fontSize: 13, color: mutedC, fontFamily: FONT_MONO }}>10</span>
+        </div>
+        <div style={{ fontSize: 11, color: mutedC, fontFamily: FONT_TEXT, marginTop: 8 }}>
+          每条弦练习 {pps} 道题后换弦
+        </div>
+      </Section>
+
+      {/* BPM 节拍控制 */}
+      <Section label="节拍速度 BPM" isDark={isDark}>
+        <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+          {BPM_VALS.map(v => {
+            const act = bpm === v;
+            return (
+              <motion.button key={v} onClick={() => setBpm(v)} whileTap={{ scale: 0.88 }}
+                style={{
+                  padding: '7px 14px', borderRadius: 11, cursor: 'pointer', flexShrink: 0,
+                  background: act ? (isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.09)') : (isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)'),
+                  border: `0.5px solid ${act ? (isDark ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.16)') : (isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)')}`,
+                }}
+              >
+                <span style={{ fontSize: 13, fontWeight: act ? 600 : 400, color: act ? titleC : mutedC, fontFamily: FONT_MONO }}>
+                  {v === 0 ? '自由' : v}
+                </span>
+              </motion.button>
+            );
+          })}
+        </div>
+        <div style={{ fontSize: 11, color: mutedC, fontFamily: FONT_TEXT, marginTop: 8 }}>
+          {bpm === 0 ? '不限速，自由作答' : `${bpm} BPM — 每拍显示新题`}
+        </div>
+      </Section>
+
+      {/* 高级选项 */}
+      <Section label="高级规则" isDark={isDark}>
+        <div style={{ borderRadius: 12, overflow: 'hidden', border: `0.5px solid ${line}` }}>
+          <div style={{ padding: '0 14px' }}>
+            <ToggleRow
+              label="避免重复上题"
+              sub="相邻两题不出相同根音 + 音程"
+              value={repeatPenalty} onChange={setRepeatPenalty} isDark={isDark}
+            />
+          </div>
+          <div style={{ height: '0.5px', background: line, margin: '0 14px' }} />
+          <div style={{ padding: '0 14px' }}>
+            <ToggleRow
+              label="按弦分组"
+              sub="完成一条弦所有题目后再换弦"
+              value={groupByString} onChange={setGroupByString} isDark={isDark}
+            />
+          </div>
+          <div style={{ height: '0.5px', background: line, margin: '0 14px' }} />
+          <div style={{ padding: '0 14px' }}>
+            <ToggleRow
+              label="方向锁定"
+              sub="仅允许低→高或高→低单方向出题"
+              value={dirLock} onChange={setDirLock} isDark={isDark}
+            />
+          </div>
+        </div>
+      </Section>
+
+    </L3EditorShell>
+  );
+}
+</file>
+
+<file path="src/components/intervals/l3/L3EditorShell.jsx">
+// components/intervals/l3/L3EditorShell.jsx
+// Fix 5: 退出按钮离开左上角系统热区
+//   - header 加 paddingTop: safe-area-inset-top
+//   - 头部布局: 左侧空 | 中间标题 | 右侧"完成"
+//   - 底部独立"返回"大按钮 → 远离系统热区，拇指友好
 
 import React, { useContext } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ThemeContext } from '../../../contexts';
-import { FONT_TEXT } from '../../../theme';
+import { FONT_TEXT, FONT_DISPLAY } from '../../../theme';
 import { SPRINGS_IV } from '../../../motion/springs';
 
 function useIsDark() { return (useContext(ThemeContext)?.dark) ?? true; }
 
-export function L2Overlay({ isOpen, onClose, title, children, onDeepDive }) {
+export function L3EditorShell({ isOpen, title, onClose, onApply, children }) {
   const isDark = useIsDark();
 
-  const panelBg     = isDark ? 'rgba(18,18,24,0.96)' : 'rgba(248,248,252,0.97)';
-  const borderColor = isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.08)';
-  const titleColor  = isDark ? 'rgba(235,235,245,0.88)' : 'rgba(0,0,0,0.82)';
-  const mutedColor  = isDark ? 'rgba(235,235,245,0.30)' : 'rgba(0,0,0,0.30)';
-  const divider     = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+  const bg          = isDark ? '#0a0a0e' : '#F2F2F7';
+  const headerBg    = isDark ? 'rgba(10,10,14,0.96)' : 'rgba(242,242,247,0.96)';
+  const border      = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
+  const titleC      = isDark ? 'rgba(235,235,245,0.90)' : 'rgba(0,0,0,0.84)';
+  const mutedC      = isDark ? 'rgba(235,235,245,0.46)' : 'rgba(0,0,0,0.40)';
+  const doneC       = isDark ? 'rgba(235,235,245,0.80)' : 'rgba(0,0,0,0.75)';
+  const backBg      = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)';
+  const backBorder  = isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.09)';
+  const applyBg     = isDark ? 'rgba(255,255,255,0.11)' : 'rgba(0,0,0,0.08)';
+  const applyBorder = isDark ? 'rgba(255,255,255,0.20)' : 'rgba(0,0,0,0.13)';
 
   return (
     <AnimatePresence>
       {isOpen && (
-        <>
-          {/* ── 全屏背景遮罩 — flex居中容器 ── */}
-          {/* 注意：这一层是 position:fixed inset:0，内部用 flexbox 居中面板 */}
-          {/* 不在面板本身用 top/left/transform 定位，避免与 framer-motion 冲突 */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.22 }}
-            onClick={onClose}
-            style={{
-              position: 'fixed',
-              inset: 0,
-              zIndex: 60,
-              background: isDark ? 'rgba(0,0,0,0.75)' : 'rgba(0,0,0,0.48)',
-              backdropFilter: 'blur(18px)',
-              WebkitBackdropFilter: 'blur(18px)',
-              // ── flex居中：面板直接放在这个容器里 ──
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '0 16px',
-            }}
-          >
-            {/* ── 面板本体 — 用 scale+opacity 动画，不用 position ── */}
-            {/* stopPropagation 防止点击面板触发背景 onClose */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.88 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.93 }}
-              transition={SPRINGS_IV.layerExpand}
-              onClick={e => e.stopPropagation()}
-              drag="y"
-              dragConstraints={{ top: 0, bottom: 0 }}
-              dragElastic={0.08}
-              onDragEnd={(_, info) => {
-                if (info.offset.y > 60 || info.velocity.y > 300) onClose();
-              }}
+        <motion.div
+          initial={{ x: '100%' }}
+          animate={{ x: 0 }}
+          exit={{ x: '100%' }}
+          transition={SPRINGS_IV.pagePush}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 70,
+            background: bg,
+            display: 'flex', flexDirection: 'column',
+          }}
+        >
+          {/* ── Header ── */}
+          {/* Fix 5: paddingTop = safe-area-inset-top 避免被状态栏遮挡 */}
+          {/* 布局: 左侧无按钮（避免左上系统热区）| 居中标题 | 右侧"完成" */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'space-between',
+            paddingTop: 'max(env(safe-area-inset-top, 0px), 14px)',
+            paddingBottom: 12,
+            paddingLeft: 16,
+            paddingRight: 16,
+            background: headerBg,
+            borderBottom: `0.5px solid ${border}`,
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            flexShrink: 0,
+            minHeight: 56,
+          }}>
+            {/* 左侧：空白占位（与右侧"完成"等宽，让标题居中） */}
+            <div style={{ width: 52 }} />
+
+            {/* 中间：标题 */}
+            <span style={{
+              fontSize: 16, fontWeight: 600,
+              color: titleC, fontFamily: FONT_DISPLAY,
+              textAlign: 'center',
+            }}>
+              {title}
+            </span>
+
+            {/* 右侧：完成 */}
+            <motion.button
+              onClick={() => { onApply?.(); onClose(); }}
+              whileTap={{ scale: 0.92 }}
               style={{
-                width: '100%',
-                maxWidth: 420,
-                maxHeight: '80vh',
-                background: panelBg,
-                backdropFilter: 'blur(32px)',
-                WebkitBackdropFilter: 'blur(32px)',
-                border: `0.5px solid ${borderColor}`,
-                borderRadius: 22,
-                boxShadow: isDark
-                  ? '0 24px 80px rgba(0,0,0,0.65), 0 4px 16px rgba(0,0,0,0.40)'
-                  : '0 12px 48px rgba(0,0,0,0.18)',
-                overflow: 'hidden',
-                display: 'flex',
-                flexDirection: 'column',
+                padding: '5px 14px', borderRadius: 16, width: 52,
+                background: applyBg, border: `0.5px solid ${applyBorder}`,
+                cursor: 'pointer',
               }}
             >
-              {/* Header */}
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '14px 18px 12px',
-                borderBottom: `0.5px solid ${divider}`,
-                flexShrink: 0,
-              }}>
-                <span style={{
-                  fontSize: 15, fontWeight: 600,
-                  color: titleColor, fontFamily: FONT_TEXT,
-                }}>
-                  {title}
-                </span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                  {onDeepDive && (
-                    <span
-                      onClick={onDeepDive}
-                      style={{
-                        fontSize: 11, color: mutedColor,
-                        fontFamily: FONT_TEXT, cursor: 'pointer',
-                      }}
-                    >
-                      深度设置 →
-                    </span>
-                  )}
-                  <motion.button
-                    onClick={onClose}
-                    whileTap={{ scale: 0.86 }}
-                    style={{
-                      width: 26, height: 26, borderRadius: 13,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      background: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
-                      border: `0.5px solid ${isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.08)'}`,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <svg width={9} height={9} viewBox="0 0 10 10" fill="none">
-                      <path d="M1 1l8 8M9 1L1 9"
-                        stroke={isDark ? 'rgba(235,235,245,0.50)' : 'rgba(0,0,0,0.40)'}
-                        strokeWidth={1.4} strokeLinecap="round"/>
-                    </svg>
-                  </motion.button>
-                </div>
-              </div>
+              <span style={{ fontSize: 14, fontWeight: 500, color: doneC, fontFamily: FONT_TEXT }}>
+                完成
+              </span>
+            </motion.button>
+          </div>
 
-              {/* Scrollable content */}
-              <div style={{
-                flex: 1,
-                overflowY: 'auto',
-                WebkitOverflowScrolling: 'touch',
-                padding: '14px 18px 20px',
-              }}>
-                {children}
-              </div>
-            </motion.div>
-          </motion.div>
-        </>
+          {/* ── Scrollable content ── */}
+          <div style={{
+            flex: 1, overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
+            padding: '20px 16px 12px',
+          }}>
+            {children}
+          </div>
+
+          {/* ── Bottom bar: 应用 + 返回 ── */}
+          {/* Fix 5: 返回放在底部，拇指区，远离左上角系统热区 */}
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+            padding: '10px 16px',
+            paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 16px)',
+            borderTop: `0.5px solid ${border}`,
+            background: headerBg,
+            flexShrink: 0,
+          }}>
+            {/* 应用按钮 */}
+            <motion.button
+              onClick={() => { onApply?.(); onClose(); }}
+              whileTap={{ scale: 0.97 }}
+              style={{
+                height: 46, width: '100%', borderRadius: 13,
+                background: applyBg, border: `0.5px solid ${applyBorder}`,
+                cursor: 'pointer',
+              }}
+            >
+              <span style={{ fontSize: 15, fontWeight: 600, color: titleC, fontFamily: FONT_DISPLAY }}>
+                应用
+              </span>
+            </motion.button>
+
+            {/* 返回按钮 — 底部居中，大热区，拇指友好 */}
+            <motion.button
+              onClick={onClose}
+              whileTap={{ scale: 0.97, opacity: 0.7 }}
+              style={{
+                height: 40, width: '100%', borderRadius: 12,
+                background: backBg, border: `0.5px solid ${backBorder}`,
+                cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              }}
+            >
+              <svg width={14} height={14} viewBox="0 0 14 14" fill="none">
+                <path d="M9 12L4 7l5-5" stroke={mutedC} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              <span style={{ fontSize: 14, fontWeight: 400, color: mutedC, fontFamily: FONT_TEXT }}>
+                返回
+              </span>
+            </motion.button>
+          </div>
+        </motion.div>
       )}
     </AnimatePresence>
   );
 }
 </file>
 
-<file path="src/components/intervals/l2/SpaceEditorL2.jsx">
-// components/intervals/l2/SpaceEditorL2.jsx  — v2 uses L2Overlay
-//
-// 6×12 drag-select grid — 内容方向保留，容器改成 L2Overlay 中间聚焦层
-import React, { useContext, useCallback, useRef, useState } from 'react';
-import { motion }              from 'framer-motion';
-import { ThemeContext }         from '../../../contexts';
+<file path="src/components/intervals/l3/SpaceEditorL3.jsx">
+// components/intervals/l3/SpaceEditorL3.jsx
+// Fix 4: L3 深度补强
+//   新增：品位锁定模式、位置步进控制、高级视口选项
+
+import React, { useContext, useState } from 'react';
+import { motion } from 'framer-motion';
+import { ThemeContext } from '../../../contexts';
 import { FONT_TEXT, FONT_MONO } from '../../../theme';
-import { SPRINGS_IV }           from '../../../motion/springs';
-import { SPACE_PRESETS }        from '../../../trainers/intervals/constants';
-import { L2Overlay }            from './L2Overlay';
+import { L3EditorShell } from './L3EditorShell';
+import { SPRINGS_IV } from '../../../motion/springs';
 
-const ROWS = 6;
-const COLS = 12;
-const CELL = 26;
-const GAP  = 4;
 const STRING_NAMES = ['E2','A2','D3','G3','B3','e4'];
-
 function useIsDark() { return (useContext(ThemeContext)?.dark) ?? true; }
 
-function presetToSelected(id) {
-  const p = SPACE_PRESETS.find(x => x.id === id);
-  if (!p || id === 'full' || id === 'custom') return null;
-  const cells = new Set();
-  const { fretRange, strings } = p;
-  for (let r = 0; r < ROWS; r++) {
-    if (strings && !strings.includes(r)) continue;
-    for (let c = fretRange.min; c <= Math.min(fretRange.max, COLS - 1); c++) {
-      cells.add(`${r},${c}`);
-    }
-  }
-  return cells;
-}
-
-function GridContent({ spacePresetId, onSpaceChange, isDark }) {
-  const [selected, setSelected] = useState(() => presetToSelected(spacePresetId));
-  const dragging = useRef(false);
-  const dragMode = useRef('select');
-  const touched  = useRef(new Set());
-
-  const isSelected = useCallback((r, c) =>
-    selected === null || selected.has(`${r},${c}`), [selected]);
-
-  const mutate = useCallback((r, c) => {
-    setSelected(prev => {
-      const next = prev === null
-        ? new Set(Array.from({length:ROWS*COLS}, (_, i) => `${Math.floor(i/COLS)},${i%COLS}`))
-        : new Set(prev);
-      const key = `${r},${c}`;
-      if (dragMode.current === 'select') next.add(key); else next.delete(key);
-      return next;
-    });
-  }, []);
-
-  const handleDown = useCallback((r, c, e) => {
-    e.currentTarget.setPointerCapture(e.pointerId);
-    dragging.current = true;
-    touched.current = new Set([`${r},${c}`]);
-    dragMode.current = isSelected(r, c) ? 'deselect' : 'select';
-    mutate(r, c);
-  }, [isSelected, mutate]);
-
-  const handleEnter = useCallback((r, c) => {
-    if (!dragging.current) return;
-    const key = `${r},${c}`;
-    if (touched.current.has(key)) return;
-    touched.current.add(key);
-    mutate(r, c);
-  }, [mutate]);
-
-  const handleUp = useCallback(() => { dragging.current = false; }, []);
-
-  const applyPreset = (id) => {
-    setSelected(id === 'full' ? null : presetToSelected(id));
-    onSpaceChange?.(id);
-  };
-
-  const labelC  = isDark ? 'rgba(235,235,245,0.28)' : 'rgba(0,0,0,0.28)';
-  const titleC  = isDark ? 'rgba(235,235,245,0.86)' : 'rgba(0,0,0,0.80)';
-  const cellOn  = isDark ? 'rgba(255,255,255,0.17)' : 'rgba(0,0,0,0.13)';
-  const cellOff = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)';
-  const bdrOn   = isDark ? 'rgba(255,255,255,0.26)' : 'rgba(0,0,0,0.18)';
-  const bdrOff  = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)';
-
+function Section({ label, isDark, children }) {
+  const labelC = isDark ? 'rgba(235,235,245,0.38)' : 'rgba(0,0,0,0.36)';
+  const line   = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
   return (
-    <div>
-      {/* Fret label row */}
-      <div style={{ display:'grid', gridTemplateColumns:`18px repeat(${COLS},${CELL}px)`, gap:`0 ${GAP}px`, marginBottom:4 }}>
-        <div/>
-        {Array.from({length:COLS}, (_,i) => (
-          <div key={i} style={{ textAlign:'center', fontSize:7.5, color:labelC, fontFamily:FONT_MONO }}>{i+1}</div>
-        ))}
+    <div style={{ paddingBottom: 22, borderBottom: `0.5px solid ${line}`, marginBottom: 22 }}>
+      <div style={{
+        fontSize: 10, fontWeight: 600, color: labelC,
+        fontFamily: FONT_TEXT, textTransform: 'uppercase',
+        letterSpacing: '0.08em', marginBottom: 14,
+      }}>
+        {label}
       </div>
-
-      {/* Grid rows */}
-      <div style={{ touchAction:'none', userSelect:'none' }}>
-        {Array.from({length:ROWS}, (_,r) => (
-          <div key={r} style={{ display:'grid', gridTemplateColumns:`18px repeat(${COLS},${CELL}px)`, gap:`${GAP}px`, marginBottom: r<ROWS-1 ? GAP : 0 }}>
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', paddingRight:3 }}>
-              <span style={{ fontSize:7, color:labelC, fontFamily:FONT_MONO }}>{STRING_NAMES[r]}</span>
-            </div>
-            {Array.from({length:COLS}, (_,c) => {
-              const on = isSelected(r,c);
-              return (
-                <motion.div
-                  key={c}
-                  onPointerDown={e => handleDown(r,c,e)}
-                  onPointerEnter={() => handleEnter(r,c)}
-                  onPointerUp={handleUp}
-                  animate={{ scale: on ? 1 : 0.88 }}
-                  transition={SPRINGS_IV.gridCellSelect}
-                  style={{
-                    width:CELL, height:CELL, borderRadius:7, cursor:'pointer',
-                    background: on ? cellOn : cellOff,
-                    border: `0.5px solid ${on ? bdrOn : bdrOff}`,
-                  }}
-                />
-              );
-            })}
-          </div>
-        ))}
-      </div>
-
-      {/* Preset row */}
-      <div style={{ display:'flex', gap:6, marginTop:12, overflowX:'auto' }}>
-        {SPACE_PRESETS.filter(p => p.id !== 'custom').map(p => {
-          const act = spacePresetId === p.id;
-          return (
-            <motion.button
-              key={p.id}
-              onClick={() => applyPreset(p.id)}
-              whileTap={{ scale:0.93 }}
-              style={{
-                flexShrink:0, padding:'5px 12px', borderRadius:16, cursor:'pointer',
-                background: act ? (isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.09)') : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)'),
-                border:`0.5px solid ${act ? (isDark ? 'rgba(255,255,255,0.20)' : 'rgba(0,0,0,0.15)') : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)')}`,
-              }}
-            >
-              <span style={{ fontSize:11, fontWeight:act?600:400, color:isDark?(act?'rgba(235,235,245,0.88)':'rgba(235,235,245,0.38)'):(act?'rgba(0,0,0,0.80)':'rgba(0,0,0,0.36)'), fontFamily:FONT_TEXT }}>
-                {p.label}
-              </span>
-            </motion.button>
-          );
-        })}
-      </div>
+      {children}
     </div>
   );
 }
 
-export function SpaceEditorL2({ isOpen, onClose, spacePresetId, onSpaceChange, onOpenL3 }) {
-  const isDark = useIsDark();
+function ToggleRow({ label, sub, value, onChange, isDark }) {
+  const titleC = isDark ? 'rgba(235,235,245,0.84)' : 'rgba(0,0,0,0.80)';
+  const subC   = isDark ? 'rgba(235,235,245,0.36)' : 'rgba(0,0,0,0.36)';
+  const trackOn  = isDark ? 'rgba(255,255,255,0.20)' : 'rgba(0,0,0,0.18)';
+  const trackOff = isDark ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.08)';
   return (
-    <L2Overlay isOpen={isOpen} onClose={onClose} title="Space 音域" onDeepDive={onOpenL3}>
-      <GridContent spacePresetId={spacePresetId} onSpaceChange={onSpaceChange} isDark={isDark} />
-    </L2Overlay>
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      padding: '11px 0',
+    }}>
+      <div>
+        <div style={{ fontSize: 14, color: titleC, fontFamily: FONT_TEXT }}>{label}</div>
+        {sub && <div style={{ fontSize: 11, color: subC, fontFamily: FONT_TEXT, marginTop: 2 }}>{sub}</div>}
+      </div>
+      <motion.div
+        onClick={() => onChange(!value)}
+        animate={{ background: value ? trackOn : trackOff }}
+        style={{
+          width: 44, height: 26, borderRadius: 13,
+          position: 'relative', cursor: 'pointer', flexShrink: 0,
+          border: `0.5px solid ${isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.10)'}`,
+        }}
+      >
+        <motion.div
+          animate={{ x: value ? 20 : 2 }}
+          transition={{ type: 'spring', stiffness: 480, damping: 28 }}
+          style={{
+            position: 'absolute', top: 3, width: 20, height: 20,
+            borderRadius: 10,
+            background: isDark ? 'rgba(255,255,255,0.80)' : 'rgba(0,0,0,0.65)',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.25)',
+          }}
+        />
+      </motion.div>
+    </div>
+  );
+}
+
+export function SpaceEditorL3({ isOpen, onClose, spaceSettings, onSpaceSettings }) {
+  const isDark = useIsDark();
+  const [fretMin,      setFretMin]     = useState(spaceSettings?.fretRange?.min ?? 0);
+  const [fretMax,      setFretMax]     = useState(spaceSettings?.fretRange?.max ?? 12);
+  const [strings,      setStrings]     = useState(
+    spaceSettings?.strings ?? [true,true,true,true,true,true]
+  );
+  // 新增状态
+  const [posLock,      setPosLock]     = useState(false);   // 位置锁定
+  const [posStep,      setPosStep]     = useState(1);        // 位置步进
+  const [linkedView,   setLinkedView]  = useState(true);    // 视口跟随根音
+  const [octaveLimit,  setOctaveLimit] = useState(false);   // 限单八度
+
+  const titleC   = isDark ? 'rgba(235,235,245,0.88)' : 'rgba(0,0,0,0.82)';
+  const mutedC   = isDark ? 'rgba(235,235,245,0.38)' : 'rgba(0,0,0,0.36)';
+  const sliderBg = isDark ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.08)';
+  const line     = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+
+  const toggleString = (i) => setStrings(prev => prev.map((v, j) => j === i ? !v : v));
+
+  const apply = () => onSpaceSettings?.({
+    fretRange: { min: fretMin, max: fretMax },
+    strings,
+    positionLock: posLock,
+    positionStep: posStep,
+    linkedViewport: linkedView,
+    octaveLimit,
+  });
+
+  return (
+    <L3EditorShell isOpen={isOpen} title="Space 音域" onClose={onClose} onApply={apply}>
+
+      {/* 品位范围 */}
+      <Section label="品位范围" isDark={isDark}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+          <span style={{ fontSize: 22, fontWeight: 600, color: titleC, fontFamily: FONT_MONO, minWidth: 28, textAlign: 'center' }}>
+            {fretMin}
+          </span>
+          <div style={{ flex: 1, position: 'relative' }}>
+            <div style={{ height: 3, background: sliderBg, borderRadius: 2, position: 'relative' }}>
+              <div style={{
+                position: 'absolute', left: `${(fretMin/12)*100}%`, right: `${((12-fretMax)/12)*100}%`,
+                height: '100%', background: isDark ? 'rgba(255,255,255,0.30)' : 'rgba(0,0,0,0.25)',
+                borderRadius: 2,
+              }} />
+            </div>
+            <input type="range" min={0} max={11} value={fretMin}
+              onChange={e => { const v = +e.target.value; if (v < fretMax) setFretMin(v); }}
+              style={{ position: 'absolute', inset: '-8px 0', opacity: 0, cursor: 'pointer', width: '100%' }}
+            />
+          </div>
+          <span style={{ fontSize: 22, fontWeight: 600, color: titleC, fontFamily: FONT_MONO, minWidth: 28, textAlign: 'center' }}>
+            {fretMax}
+          </span>
+        </div>
+        <input type="range" min={1} max={12} value={fretMax}
+          onChange={e => { const v = +e.target.value; if (v > fretMin) setFretMax(v); }}
+          style={{ width: '100%', height: 3, appearance: 'none', WebkitAppearance: 'none', background: sliderBg, borderRadius: 2, cursor: 'pointer' }}
+        />
+        <div style={{ fontSize: 11, color: mutedC, fontFamily: FONT_TEXT, marginTop: 8 }}>
+          品位 {fretMin} – {fretMax}（共 {fretMax - fretMin + 1} 格）
+        </div>
+      </Section>
+
+      {/* 弦选择 */}
+      <Section label="弦选择" isDark={isDark}>
+        <div style={{ display: 'flex', gap: 7 }}>
+          {STRING_NAMES.map((s, i) => {
+            const act = strings[i];
+            return (
+              <motion.button
+                key={i}
+                onClick={() => toggleString(i)}
+                whileTap={{ scale: 0.88 }}
+                style={{
+                  flex: 1, height: 46, borderRadius: 11, cursor: 'pointer',
+                  background: act ? (isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.09)') : (isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)'),
+                  border: `0.5px solid ${act ? (isDark ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.16)') : (isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)')}`,
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
+                }}
+              >
+                <span style={{ fontSize: 10, fontWeight: act ? 600 : 400, color: act ? titleC : mutedC, fontFamily: FONT_MONO }}>{s}</span>
+                <span style={{ fontSize: 8, color: act ? mutedC : isDark ? 'rgba(255,255,255,0.16)' : 'rgba(0,0,0,0.16)', fontFamily: FONT_TEXT }}>
+                  {['6','5','4','3','2','1'][i]}弦
+                </span>
+              </motion.button>
+            );
+          })}
+        </div>
+        <div style={{ marginTop: 10, fontSize: 11, color: mutedC, fontFamily: FONT_TEXT }}>
+          已启用：{strings.filter(Boolean).length} 条弦
+        </div>
+      </Section>
+
+      {/* 位置步进 */}
+      <Section label="位置步进" isDark={isDark}>
+        <div style={{ fontSize: 12, color: mutedC, fontFamily: FONT_TEXT, marginBottom: 12 }}>
+          每次换题时，根音位置移动的步数
+        </div>
+        <div style={{ display: 'flex', gap: 7 }}>
+          {[1, 2, 3, 4, 5].map(n => {
+            const act = posStep === n;
+            return (
+              <motion.button key={n} onClick={() => setPosStep(n)} whileTap={{ scale: 0.88 }}
+                style={{
+                  flex: 1, height: 44, borderRadius: 11, cursor: 'pointer',
+                  background: act ? (isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.09)') : (isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)'),
+                  border: `0.5px solid ${act ? (isDark ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.16)') : (isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)')}`,
+                }}
+              >
+                <span style={{ fontSize: 15, fontWeight: act ? 600 : 400, color: act ? titleC : mutedC, fontFamily: FONT_MONO }}>
+                  {n === 1 ? '1' : `+${n}`}
+                </span>
+              </motion.button>
+            );
+          })}
+        </div>
+      </Section>
+
+      {/* 高级选项 */}
+      <Section label="高级" isDark={isDark}>
+        <div style={{ borderRadius: 12, overflow: 'hidden', border: `0.5px solid ${line}` }}>
+          <div style={{ padding: '0 14px' }}>
+            <ToggleRow
+              label="视口跟随根音"
+              sub="换题时自动对准根音所在品位"
+              value={linkedView} onChange={setLinkedView} isDark={isDark}
+            />
+          </div>
+          <div style={{ height: '0.5px', background: line, margin: '0 14px' }} />
+          <div style={{ padding: '0 14px' }}>
+            <ToggleRow
+              label="位置锁定"
+              sub="固定品位起点，不随题目变化"
+              value={posLock} onChange={setPosLock} isDark={isDark}
+            />
+          </div>
+          <div style={{ height: '0.5px', background: line, margin: '0 14px' }} />
+          <div style={{ padding: '0 14px' }}>
+            <ToggleRow
+              label="限制单八度内"
+              sub="根音与目标音程差不超过 12 品"
+              value={octaveLimit} onChange={setOctaveLimit} isDark={isDark}
+            />
+          </div>
+        </div>
+      </Section>
+
+    </L3EditorShell>
   );
 }
 </file>
@@ -19653,6 +19621,410 @@ export function TopUtilityRail({
 }
 </file>
 
+<file path="src/components/intervals/l2/L2Overlay.jsx">
+// components/intervals/l2/L2Overlay.jsx
+// Fix 7: iOS 控制中心视觉感
+//   - 更薄的背景透明度 + 更强的 blur
+//   - 边框用极细微渐变感
+//   - 面板四角更圆 (26px)
+//   - 阴影更柔和、更有层次
+
+import React, { useContext } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ThemeContext } from '../../../contexts';
+import { FONT_TEXT } from '../../../theme';
+import { SPRINGS_IV } from '../../../motion/springs';
+
+function useIsDark() { return (useContext(ThemeContext)?.dark) ?? true; }
+
+export function L2Overlay({ isOpen, onClose, title, children, onDeepDive }) {
+  const isDark = useIsDark();
+
+  // iOS 控制中心风格：更轻薄、更通透、更模糊
+  const backdropBg = isDark ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.35)';
+  const panelBg    = isDark
+    ? 'rgba(28,28,36,0.82)'    // 比原来更透明，依赖 blur 提供不透明感
+    : 'rgba(252,252,255,0.88)';
+  const borderColor= isDark ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.70)';
+  const titleColor = isDark ? 'rgba(235,235,245,0.90)' : 'rgba(0,0,0,0.84)';
+  const mutedColor = isDark ? 'rgba(235,235,245,0.32)' : 'rgba(0,0,0,0.32)';
+  const divider    = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)';
+  const closeBg    = isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.07)';
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        // 全屏 flex 居中容器
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.20 }}
+          onClick={onClose}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 60,
+            background: backdropBg,
+            backdropFilter: 'blur(24px)',        // 更强的背景模糊
+            WebkitBackdropFilter: 'blur(24px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '0 16px',
+          }}
+        >
+          {/* 面板 */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.86, y: 12 }}
+            animate={{ opacity: 1, scale: 1,    y: 0   }}
+            exit={{   opacity: 0, scale: 0.92,   y: 8   }}
+            transition={SPRINGS_IV.layerExpand ?? {
+              type: 'spring', stiffness: 360, damping: 30,
+            }}
+            onClick={e => e.stopPropagation()}
+            drag="y"
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={0.07}
+            onDragEnd={(_, info) => {
+              if (info.offset.y > 60 || info.velocity.y > 300) onClose();
+            }}
+            style={{
+              width: '100%',
+              maxWidth: 400,
+              maxHeight: '78vh',
+              // iOS 控制中心感：强 blur + 半透明
+              background: panelBg,
+              backdropFilter: 'blur(40px)',
+              WebkitBackdropFilter: 'blur(40px)',
+              border: `0.5px solid ${borderColor}`,
+              borderRadius: 26,              // 更圆润
+              // 多层阴影：外层柔和扩散 + 内层 inner glow 感
+              boxShadow: isDark
+                ? '0 32px 96px rgba(0,0,0,0.60), 0 8px 24px rgba(0,0,0,0.35), inset 0 0.5px 0 rgba(255,255,255,0.08)'
+                : '0 16px 56px rgba(0,0,0,0.14), 0 4px 12px rgba(0,0,0,0.08), inset 0 0.5px 0 rgba(255,255,255,0.90)',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            {/* Header */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '14px 16px 12px',
+              borderBottom: `0.5px solid ${divider}`,
+              flexShrink: 0,
+            }}>
+              <span style={{
+                fontSize: 14, fontWeight: 600,
+                color: titleColor, fontFamily: FONT_TEXT,
+                letterSpacing: '-0.01em',
+              }}>
+                {title}
+              </span>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                {onDeepDive && (
+                  <span
+                    onClick={onDeepDive}
+                    style={{
+                      fontSize: 11, color: mutedColor,
+                      fontFamily: FONT_TEXT, cursor: 'pointer',
+                      letterSpacing: '0.01em',
+                    }}
+                  >
+                    深度设置 →
+                  </span>
+                )}
+                {/* 关闭按钮 — 右上角，远离系统热区左侧 */}
+                <motion.button
+                  onClick={onClose}
+                  whileTap={{ scale: 0.84 }}
+                  style={{
+                    width: 26, height: 26, borderRadius: 13,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: closeBg,
+                    border: `0.5px solid ${isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.08)'}`,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <svg width={9} height={9} viewBox="0 0 10 10" fill="none">
+                    <path
+                      d="M1 1l8 8M9 1L1 9"
+                      stroke={isDark ? 'rgba(235,235,245,0.55)' : 'rgba(0,0,0,0.45)'}
+                      strokeWidth={1.4} strokeLinecap="round"
+                    />
+                  </svg>
+                </motion.button>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div style={{
+              flex: 1,
+              overflowY: 'auto',
+              WebkitOverflowScrolling: 'touch',
+              padding: '14px 16px 18px',
+            }}>
+              {children}
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+</file>
+
+<file path="src/components/intervals/l2/SpaceEditorL2.jsx">
+// components/intervals/l2/SpaceEditorL2.jsx
+// Fix 6: iOS 相册风格拖选
+//   - touchmove 在容器级监听，用 elementFromPoint 找目标格
+//   - 每个格子有 data-row / data-col 属性
+//   - 从任意起点开始，连续滑过即选中
+//   - 反向滑（经过已选中格）= 取消
+
+import React, { useContext, useRef, useState, useCallback } from 'react';
+import { motion } from 'framer-motion';
+import { ThemeContext } from '../../../contexts';
+import { FONT_TEXT, FONT_MONO } from '../../../theme';
+import { SPRINGS_IV } from '../../../motion/springs';
+import { SPACE_PRESETS } from '../../../trainers/intervals/constants';
+import { L2Overlay } from './L2Overlay';
+
+const ROWS         = 6;
+const COLS         = 12;
+const STRING_NAMES = ['E2','A2','D3','G3','B3','e4'];
+
+function useIsDark() { return (useContext(ThemeContext)?.dark) ?? true; }
+
+function presetToSelected(id) {
+  const p = SPACE_PRESETS.find(x => x.id === id);
+  if (!p || id === 'full' || id === 'custom') return null;
+  const cells = new Set();
+  const { fretRange, strings } = p;
+  for (let r = 0; r < ROWS; r++) {
+    if (strings && !strings.includes(r)) continue;
+    for (let c = fretRange.min; c <= Math.min(fretRange.max, COLS - 1); c++) {
+      cells.add(`${r},${c}`);
+    }
+  }
+  return cells;
+}
+
+function GridContent({ spacePresetId, onSpaceChange, isDark }) {
+  const [selected, setSelected] = useState(() => presetToSelected(spacePresetId));
+
+  // drag state refs
+  const dragMode  = useRef('select'); // 'select' | 'deselect'
+  const touched   = useRef(new Set());
+  const dragging  = useRef(false);
+  const gridRef   = useRef(null);
+
+  const isSelected = useCallback((r, c) =>
+    selected === null || selected.has(`${r},${c}`), [selected]);
+
+  // 切换单格状态
+  const toggle = useCallback((r, c, mode) => {
+    const key = `${r},${c}`;
+    setSelected(prev => {
+      // prev===null 表示全选
+      const base = prev === null
+        ? new Set(Array.from({ length: ROWS * COLS }, (_, i) => `${Math.floor(i/COLS)},${i%COLS}`))
+        : new Set(prev);
+      if (mode === 'select') base.add(key);
+      else base.delete(key);
+      return base;
+    });
+  }, []);
+
+  // ── iOS 相册风格：touchmove 在容器级用 elementFromPoint ──
+  const handleTouchStart = useCallback((e) => {
+    const touch = e.touches[0];
+    const el    = document.elementFromPoint(touch.clientX, touch.clientY);
+    if (!el) return;
+    const row = parseInt(el.dataset.row ?? el.closest?.('[data-row]')?.dataset?.row);
+    const col = parseInt(el.dataset.col ?? el.closest?.('[data-col]')?.dataset?.col);
+    if (isNaN(row) || isNaN(col)) return;
+
+    dragging.current = true;
+    touched.current  = new Set([`${row},${col}`]);
+    // 起始格的当前状态决定本次是"选中"还是"取消"模式
+    dragMode.current = isSelected(row, col) ? 'deselect' : 'select';
+    toggle(row, col, dragMode.current);
+  }, [isSelected, toggle]);
+
+  const handleTouchMove = useCallback((e) => {
+    if (!dragging.current) return;
+    e.preventDefault(); // 防止滚动
+    const touch = e.touches[0];
+    const el    = document.elementFromPoint(touch.clientX, touch.clientY);
+    if (!el) return;
+
+    // 找到有 data-row/col 的元素（或祖先）
+    const rowEl = el.dataset?.row !== undefined ? el : el.closest?.('[data-row]');
+    const colEl = el.dataset?.col !== undefined ? el : el.closest?.('[data-col]');
+    if (!rowEl || !colEl) return;
+    const row = parseInt(rowEl.dataset.row);
+    const col = parseInt(colEl.dataset.col);
+    if (isNaN(row) || isNaN(col)) return;
+
+    const key = `${row},${col}`;
+    if (touched.current.has(key)) return; // 已经处理过
+    touched.current.add(key);
+    toggle(row, col, dragMode.current);
+  }, [toggle]);
+
+  const handleTouchEnd = useCallback(() => {
+    dragging.current = false;
+  }, []);
+
+  // 鼠标备用（桌面调试）
+  const handleMouseDown = useCallback((r, c, e) => {
+    dragging.current = true;
+    touched.current  = new Set([`${r},${c}`]);
+    dragMode.current = isSelected(r, c) ? 'deselect' : 'select';
+    toggle(r, c, dragMode.current);
+  }, [isSelected, toggle]);
+
+  const handleMouseEnter = useCallback((r, c) => {
+    if (!dragging.current) return;
+    const key = `${r},${c}`;
+    if (touched.current.has(key)) return;
+    touched.current.add(key);
+    toggle(r, c, dragMode.current);
+  }, [toggle]);
+
+  const handleMouseUp = useCallback(() => { dragging.current = false; }, []);
+
+  const applyPreset = (id) => {
+    setSelected(id === 'full' ? null : presetToSelected(id));
+    onSpaceChange?.(id);
+  };
+
+  const labelC  = isDark ? 'rgba(235,235,245,0.28)' : 'rgba(0,0,0,0.28)';
+  const cellOn  = isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.14)';
+  const cellOff = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)';
+  const bdrOn   = isDark ? 'rgba(255,255,255,0.28)' : 'rgba(0,0,0,0.18)';
+  const bdrOff  = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)';
+
+  // 每格尺寸自适应（L2面板约 92vw）
+  const CELL = 22;
+  const GAP  = 3;
+
+  return (
+    <div>
+      {/* 品位标签 */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: `20px repeat(${COLS}, ${CELL}px)`,
+        gap: `0 ${GAP}px`,
+        marginBottom: 4,
+      }}>
+        <div />
+        {Array.from({ length: COLS }, (_, i) => (
+          <div key={i} style={{ textAlign: 'center', fontSize: 7.5, color: labelC, fontFamily: FONT_MONO }}>
+            {i + 1}
+          </div>
+        ))}
+      </div>
+
+      {/* 网格 — 触摸事件在容器级 */}
+      <div
+        ref={gridRef}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onMouseUp={handleMouseUp}
+        style={{ touchAction: 'none', userSelect: 'none' }}
+      >
+        {Array.from({ length: ROWS }, (_, r) => (
+          <div
+            key={r}
+            style={{
+              display: 'grid',
+              gridTemplateColumns: `20px repeat(${COLS}, ${CELL}px)`,
+              gap: `${GAP}px`,
+              marginBottom: r < ROWS - 1 ? GAP : 0,
+            }}
+          >
+            {/* 弦标签 */}
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 3,
+            }}>
+              <span style={{ fontSize: 7, color: labelC, fontFamily: FONT_MONO }}>
+                {STRING_NAMES[r]}
+              </span>
+            </div>
+
+            {/* 格子 */}
+            {Array.from({ length: COLS }, (_, c) => {
+              const on = isSelected(r, c);
+              return (
+                <div
+                  key={c}
+                  data-row={r}
+                  data-col={c}
+                  onMouseDown={(e) => handleMouseDown(r, c, e)}
+                  onMouseEnter={() => handleMouseEnter(r, c)}
+                  style={{
+                    width: CELL, height: CELL,
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                    background: on ? cellOn : cellOff,
+                    border: `0.5px solid ${on ? bdrOn : bdrOff}`,
+                    // 平滑过渡提供视觉反馈
+                    transition: 'background 0.06s, border-color 0.06s',
+                    // 选中时轻微放大
+                    transform: on ? 'scale(1)' : 'scale(0.88)',
+                  }}
+                />
+              );
+            })}
+          </div>
+        ))}
+      </div>
+
+      {/* Preset 胶囊 */}
+      <div style={{ display: 'flex', gap: 6, marginTop: 12, overflowX: 'auto' }}>
+        {SPACE_PRESETS.filter(p => p.id !== 'custom').map(p => {
+          const act = spacePresetId === p.id;
+          return (
+            <motion.button
+              key={p.id}
+              onClick={() => applyPreset(p.id)}
+              whileTap={{ scale: 0.93 }}
+              style={{
+                flexShrink: 0, padding: '5px 12px', borderRadius: 16, cursor: 'pointer',
+                background: act ? (isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.09)') : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)'),
+                border: `0.5px solid ${act ? (isDark ? 'rgba(255,255,255,0.20)' : 'rgba(0,0,0,0.15)') : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)')}`,
+              }}
+            >
+              <span style={{
+                fontSize: 11, fontWeight: act ? 600 : 400,
+                color: isDark ? (act ? 'rgba(235,235,245,0.88)' : 'rgba(235,235,245,0.38)') : (act ? 'rgba(0,0,0,0.80)' : 'rgba(0,0,0,0.36)'),
+                fontFamily: FONT_TEXT,
+              }}>
+                {p.label}
+              </span>
+            </motion.button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export function SpaceEditorL2({ isOpen, onClose, spacePresetId, onSpaceChange, onOpenL3 }) {
+  const isDark = useIsDark();
+  return (
+    <L2Overlay isOpen={isOpen} onClose={onClose} title="Space 音域" onDeepDive={onOpenL3}>
+      <GridContent spacePresetId={spacePresetId} onSpaceChange={onSpaceChange} isDark={isDark} />
+    </L2Overlay>
+  );
+}
+</file>
+
 <file path="src/components/shared/InfiniteMenu.jsx">
 // components/shared/InfiniteMenu.jsx
 //
@@ -19964,12 +20336,8 @@ export function IntervalsEditorL2({
 
 <file path="src/components/intervals/l1/PracticeControlSheet.jsx">
 // components/intervals/l1/PracticeControlSheet.jsx
-//
-// 修正：
-//   ✅ 删掉假 TabBar
-//   ✅ 加高（top row 110px, bottom row 90px）
-//   ✅ Mode/Intervals 加 SVG 图标
-//   ✅ L2 入口 onContextMenu（长按进入 Space / Flow L2）
+// Fix 2: Intervals CycleCard 加长按进入 L2
+// Fix 3: Space/Flow onContextMenu 已有，保留
 
 import React, { useContext, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -19979,12 +20347,11 @@ import { SPRINGS_IV } from '../../../motion/springs';
 
 function useIsDark() { return (useContext(ThemeContext)?.dark) ?? true; }
 
-// ── 数据 ─────────────────────────────────────────────────────
 const MODE_CYCLE = [
-  { id: 'learning',  label: 'Visual',     icon: 'eye'  },
+  { id: 'learning',  label: 'Visual',     icon: 'eye'     },
   { id: 'blind',     label: 'Blind',      icon: 'eye-off' },
-  { id: 'rootFirst', label: 'Root First', icon: 'root' },
-  { id: 'coreDrill', label: 'Core Drill', icon: 'target' },
+  { id: 'rootFirst', label: 'Root First', icon: 'root'    },
+  { id: 'coreDrill', label: 'Core Drill', icon: 'target'  },
 ];
 const INTERVAL_CYCLE = [
   { id: 'all',     label: 'All 11' },
@@ -20003,83 +20370,39 @@ const SPACE_LABEL = { full: 'Full board', pos1: '1–5', pos5: '5–9', ead: 'EA
 const FLOW_CYCLE  = ['free', 'low-high', 'high-low'];
 const FLOW_LABEL  = { free: 'Free', 'low-high': 'Low → High', 'high-low': 'High → Low' };
 
-// ── SVG icons ─────────────────────────────────────────────────
 function Icon({ type, size = 16, color }) {
   const s = { width: size, height: size, display: 'block' };
   switch (type) {
     case 'eye':
-      return (
-        <svg style={s} viewBox="0 0 20 20" fill="none">
-          <ellipse cx="10" cy="10" rx="8" ry="5" stroke={color} strokeWidth="1.3"/>
-          <circle cx="10" cy="10" r="2.2" fill={color}/>
-        </svg>
-      );
+      return <svg style={s} viewBox="0 0 20 20" fill="none"><ellipse cx="10" cy="10" rx="8" ry="5" stroke={color} strokeWidth="1.3"/><circle cx="10" cy="10" r="2.2" fill={color}/></svg>;
     case 'eye-off':
-      return (
-        <svg style={s} viewBox="0 0 20 20" fill="none">
-          <path d="M2 10 Q10 4 18 10 Q10 16 2 10" stroke={color} strokeWidth="1.3" strokeLinecap="round"/>
-          <line x1="4" y1="4" x2="16" y2="16" stroke={color} strokeWidth="1.4" strokeLinecap="round"/>
-        </svg>
-      );
+      return <svg style={s} viewBox="0 0 20 20" fill="none"><path d="M2 10 Q10 4 18 10 Q10 16 2 10" stroke={color} strokeWidth="1.3" strokeLinecap="round"/><line x1="4" y1="4" x2="16" y2="16" stroke={color} strokeWidth="1.4" strokeLinecap="round"/></svg>;
     case 'root':
-      return (
-        <svg style={s} viewBox="0 0 20 20" fill="none">
-          <circle cx="6" cy="10" r="2.8" fill={color}/>
-          <path d="M10 9 Q13 5 16 9" stroke={color} strokeWidth="1.3" strokeLinecap="round" fill="none"/>
-          <circle cx="16" cy="10.5" r="2.2" stroke={color} strokeWidth="1.3"/>
-        </svg>
-      );
+      return <svg style={s} viewBox="0 0 20 20" fill="none"><circle cx="6" cy="10" r="2.8" fill={color}/><path d="M10 9 Q13 5 16 9" stroke={color} strokeWidth="1.3" strokeLinecap="round" fill="none"/><circle cx="16" cy="10.5" r="2.2" stroke={color} strokeWidth="1.3"/></svg>;
     case 'target':
-      return (
-        <svg style={s} viewBox="0 0 20 20" fill="none">
-          <circle cx="10" cy="10" r="7.5" stroke={color} strokeWidth="1.1"/>
-          <circle cx="10" cy="10" r="4"   stroke={color} strokeWidth="1.1"/>
-          <circle cx="10" cy="10" r="1.2" fill={color}/>
-        </svg>
-      );
+      return <svg style={s} viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7.5" stroke={color} strokeWidth="1.1"/><circle cx="10" cy="10" r="4" stroke={color} strokeWidth="1.1"/><circle cx="10" cy="10" r="1.2" fill={color}/></svg>;
     case 'music':
-      return (
-        <svg style={s} viewBox="0 0 20 20" fill="none">
-          <path d="M8 15V6l8-1.5V13" stroke={color} strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
-          <circle cx="6" cy="15" r="2" stroke={color} strokeWidth="1.2"/>
-          <circle cx="14" cy="13" r="2" stroke={color} strokeWidth="1.2"/>
-        </svg>
-      );
+      return <svg style={s} viewBox="0 0 20 20" fill="none"><path d="M8 15V6l8-1.5V13" stroke={color} strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/><circle cx="6" cy="15" r="2" stroke={color} strokeWidth="1.2"/><circle cx="14" cy="13" r="2" stroke={color} strokeWidth="1.2"/></svg>;
     case 'grid':
-      return (
-        <svg style={s} viewBox="0 0 20 20" fill="none">
-          <rect x="3" y="3" width="6" height="6" rx="1.5" stroke={color} strokeWidth="1.2"/>
-          <rect x="11" y="3" width="6" height="6" rx="1.5" stroke={color} strokeWidth="1.2"/>
-          <rect x="3" y="11" width="6" height="6" rx="1.5" stroke={color} strokeWidth="1.2"/>
-          <rect x="11" y="11" width="6" height="6" rx="1.5" stroke={color} strokeWidth="1.2"/>
-        </svg>
-      );
+      return <svg style={s} viewBox="0 0 20 20" fill="none"><rect x="3" y="3" width="6" height="6" rx="1.5" stroke={color} strokeWidth="1.2"/><rect x="11" y="3" width="6" height="6" rx="1.5" stroke={color} strokeWidth="1.2"/><rect x="3" y="11" width="6" height="6" rx="1.5" stroke={color} strokeWidth="1.2"/><rect x="11" y="11" width="6" height="6" rx="1.5" stroke={color} strokeWidth="1.2"/></svg>;
     case 'flow':
-      return (
-        <svg style={s} viewBox="0 0 20 20" fill="none">
-          <path d="M4 10 Q10 4 16 10" stroke={color} strokeWidth="1.3" strokeLinecap="round" fill="none"/>
-          <path d="M4 10 Q10 16 16 10" stroke={color} strokeWidth="1.3" strokeLinecap="round" fill="none" strokeDasharray="2 2"/>
-        </svg>
-      );
-    default:
-      return null;
+      return <svg style={s} viewBox="0 0 20 20" fill="none"><path d="M4 10 Q10 4 16 10" stroke={color} strokeWidth="1.3" strokeLinecap="round" fill="none"/><path d="M4 10 Q10 16 16 10" stroke={color} strokeWidth="1.3" strokeLinecap="round" fill="none" strokeDasharray="2 2"/></svg>;
+    default: return null;
   }
 }
 
-// ── l1-card 基础样式 ─────────────────────────────────────────
 const cardStyle = (isDark, extra = {}) => ({
-  background:   isDark ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.04)',
-  border:       `1px solid ${isDark ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.07)'}`,
-  borderRadius: 12,
-  fontFamily:   FONT_TEXT,
-  display:      'flex',
-  alignItems:   'center',
+  background:     isDark ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.04)',
+  border:         `1px solid ${isDark ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.07)'}`,
+  borderRadius:   12,
+  fontFamily:     FONT_TEXT,
+  display:        'flex',
+  alignItems:     'center',
   justifyContent: 'center',
   ...extra,
 });
 
-// ── 值滑动切换 ────────────────────────────────────────────────
-function SlideValue({ value, size = 11 }) {
+function SlideValue({ value }) {
   return (
     <AnimatePresence mode="wait" initial={false}>
       <motion.span
@@ -20088,7 +20411,7 @@ function SlideValue({ value, size = 11 }) {
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: -7, opacity: 0 }}
         transition={{ duration: 0.14 }}
-        style={{ fontSize: size, opacity: 0.45, display: 'block', lineHeight: 1 }}
+        style={{ fontSize: 11, opacity: 0.45, display: 'block', lineHeight: 1 }}
       >
         {value}
       </motion.span>
@@ -20096,12 +20419,51 @@ function SlideValue({ value, size = 11 }) {
   );
 }
 
-// ── 循环切换卡：Mode / Intervals ─────────────────────────────
-function CycleCard({ title, value, icon, onTap, isDark, style = {} }) {
+// ── 通用长按卡片 — Mode / Intervals / Space / Flow 都用这个 ──
+// onTap = 短按（循环切换）
+// onLongPress = 长按进入 L2（可选）
+function PressCard({ title, value, icon, onTap, onLongPress, isDark, style = {} }) {
+  const timerRef = useRef(null);
+  const firedRef = useRef(false);
+
+  const down = useCallback((e) => {
+    // 阻止默认（防止 iOS 触发系统长按菜单）
+    firedRef.current = false;
+    if (onLongPress) {
+      timerRef.current = setTimeout(() => {
+        firedRef.current = true;
+        onLongPress();
+      }, 480);
+    }
+  }, [onLongPress]);
+
+  const up = useCallback(() => {
+    clearTimeout(timerRef.current);
+    if (!firedRef.current) onTap?.();
+    firedRef.current = false;
+  }, [onTap]);
+
+  const cancel = useCallback(() => {
+    clearTimeout(timerRef.current);
+    firedRef.current = false;
+  }, []);
+
+  // onContextMenu = iOS/Android 长按最可靠的触发方式
+  const ctxMenu = useCallback((e) => {
+    e.preventDefault();
+    if (!onLongPress) return;
+    clearTimeout(timerRef.current);
+    firedRef.current = true;
+    onLongPress();
+  }, [onLongPress]);
+
   const fg = isDark ? 'rgba(255,255,255,.60)' : 'rgba(0,0,0,.58)';
+
   return (
     <motion.div
-      onClick={onTap}
+      onMouseDown={down}  onMouseUp={up}  onMouseLeave={cancel}
+      onTouchStart={down} onTouchEnd={up} onTouchCancel={cancel}
+      onContextMenu={ctxMenu}
       whileTap={{ scale: 0.94, opacity: 0.75 }}
       transition={{ type: 'spring', stiffness: 420, damping: 32 }}
       style={cardStyle(isDark, {
@@ -20115,11 +20477,18 @@ function CycleCard({ title, value, icon, onTap, isDark, style = {} }) {
       {icon && <Icon type={icon} size={17} color={fg} />}
       <span style={{ fontSize: 12, fontWeight: 600, color: fg, lineHeight: 1 }}>{title}</span>
       <SlideValue value={value} />
+      {/* 长按提示点 */}
+      {onLongPress && (
+        <div style={{
+          position: 'absolute', bottom: 6, right: 6,
+          width: 3, height: 3, borderRadius: '50%',
+          background: isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.15)',
+        }} />
+      )}
     </motion.div>
   );
 }
 
-// ── Zone 按钮条 ───────────────────────────────────────────────
 function ZoneStrip({ zoneId, onChange, isDark }) {
   return (
     <div style={{ flex: 1, display: 'flex', gap: 4 }}>
@@ -20132,12 +20501,8 @@ function ZoneStrip({ zoneId, onChange, isDark }) {
             whileTap={{ scale: 0.90 }}
             style={{
               flex: 1, height: '100%',
-              background: act
-                ? (isDark ? 'rgba(255,255,255,.13)' : 'rgba(0,0,0,.08)')
-                : (isDark ? 'rgba(255,255,255,.04)' : 'rgba(0,0,0,.03)'),
-              border: `1px solid ${act
-                ? (isDark ? 'rgba(255,255,255,.18)' : 'rgba(0,0,0,.10)')
-                : (isDark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.06)')}`,
+              background: act ? (isDark ? 'rgba(255,255,255,.13)' : 'rgba(0,0,0,.08)') : (isDark ? 'rgba(255,255,255,.04)' : 'rgba(0,0,0,.03)'),
+              border: `1px solid ${act ? (isDark ? 'rgba(255,255,255,.18)' : 'rgba(0,0,0,.10)') : (isDark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.06)')}`,
               borderRadius: 8,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               cursor: 'pointer',
@@ -20145,9 +20510,7 @@ function ZoneStrip({ zoneId, onChange, isDark }) {
           >
             <span style={{
               fontSize: 11, fontWeight: act ? 600 : 400,
-              color: isDark
-                ? (act ? 'rgba(255,255,255,.85)' : 'rgba(255,255,255,.30)')
-                : (act ? 'rgba(0,0,0,.75)'       : 'rgba(0,0,0,.28)'),
+              color: isDark ? (act ? 'rgba(255,255,255,.85)' : 'rgba(255,255,255,.30)') : (act ? 'rgba(0,0,0,.75)' : 'rgba(0,0,0,.28)'),
               fontFamily: FONT_TEXT,
             }}>
               {z.label}
@@ -20159,55 +20522,6 @@ function ZoneStrip({ zoneId, onChange, isDark }) {
   );
 }
 
-// ── Space / Flow 卡：点击循环，长按进 L2 ─────────────────────
-function SpaceFlowCard({ title, value, icon, onTap, onOpenL2, isDark }) {
-  const timerRef = useRef(null);
-  const firedRef = useRef(false);
-
-  const down = useCallback(() => {
-    firedRef.current = false;
-    timerRef.current = setTimeout(() => { firedRef.current = true; onOpenL2?.(); }, 500);
-  }, [onOpenL2]);
-  const up = useCallback(() => {
-    clearTimeout(timerRef.current);
-    if (!firedRef.current) onTap?.();
-    firedRef.current = false;
-  }, [onTap]);
-  const cancel = useCallback(() => {
-    clearTimeout(timerRef.current); firedRef.current = false;
-  }, []);
-  const ctxMenu = useCallback((e) => {
-    e.preventDefault();
-    clearTimeout(timerRef.current);
-    firedRef.current = true;
-    onOpenL2?.();
-  }, [onOpenL2]);
-
-  const fg = isDark ? 'rgba(255,255,255,.60)' : 'rgba(0,0,0,.58)';
-
-  return (
-    <motion.div
-      onMouseDown={down} onMouseUp={up} onMouseLeave={cancel}
-      onTouchStart={down} onTouchEnd={up} onTouchCancel={cancel}
-      onContextMenu={ctxMenu}
-      whileTap={{ scale: 0.94, opacity: 0.75 }}
-      transition={{ type: 'spring', stiffness: 420, damping: 32 }}
-      style={cardStyle(isDark, {
-        flex: 1,
-        flexDirection: 'column',
-        gap: 5,
-        cursor: 'pointer',
-        userSelect: 'none',
-      })}
-    >
-      {icon && <Icon type={icon} size={17} color={fg} />}
-      <span style={{ fontSize: 12, fontWeight: 600, color: fg, lineHeight: 1 }}>{title}</span>
-      <SlideValue value={value} />
-    </motion.div>
-  );
-}
-
-// ── MAIN EXPORT ───────────────────────────────────────────────
 export function PracticeControlSheet({
   open, onClose,
   practiceMode, onPracticeModeChange,
@@ -20221,24 +20535,20 @@ export function PracticeControlSheet({
   const isDark  = useIsDark();
   const isBlind = practiceMode === 'blind';
 
-  // ── 循环逻辑 ───────────────────────────────────────────────
-  const modeIdx   = MODE_CYCLE.findIndex(m => m.id === practiceMode);
-  const currentMode = MODE_CYCLE[modeIdx] ?? MODE_CYCLE[0];
-  const cycleMode = () =>
-    onPracticeModeChange(MODE_CYCLE[(modeIdx + 1) % MODE_CYCLE.length].id);
+  const modeIdx    = MODE_CYCLE.findIndex(m => m.id === practiceMode);
+  const currentMode= MODE_CYCLE[modeIdx] ?? MODE_CYCLE[0];
+  const cycleMode  = () => onPracticeModeChange(MODE_CYCLE[(modeIdx + 1) % MODE_CYCLE.length].id);
 
   const ivIdx   = INTERVAL_CYCLE.findIndex(i => i.id === intervalsPreset);
   const ivLabel = INTERVAL_CYCLE[Math.max(0, ivIdx)]?.label ?? 'All 11';
-  const cycleIv = () =>
-    onIntervalsPreset(INTERVAL_CYCLE[(Math.max(0, ivIdx) + 1) % INTERVAL_CYCLE.length].id);
+  const cycleIv = () => onIntervalsPreset(INTERVAL_CYCLE[(Math.max(0, ivIdx) + 1) % INTERVAL_CYCLE.length].id);
 
   const spIdx     = SPACE_CYCLE.indexOf(spacePresetId ?? 'full');
-  const cycleSpace = () => onSpacePreset(SPACE_CYCLE[(spIdx + 1) % SPACE_CYCLE.length]);
+  const cycleSpace= () => onSpacePreset(SPACE_CYCLE[(spIdx + 1) % SPACE_CYCLE.length]);
 
   const flIdx    = FLOW_CYCLE.indexOf(flowPreset ?? 'free');
-  const cycleFlow = () => onFlowPreset(FLOW_CYCLE[(flIdx + 1) % FLOW_CYCLE.length]);
+  const cycleFlow= () => onFlowPreset(FLOW_CYCLE[(flIdx + 1) % FLOW_CYCLE.length]);
 
-  // ── 颜色 ──────────────────────────────────────────────────
   const sheetBg   = isDark ? 'rgba(18,18,30,.97)' : 'rgba(255,255,255,.98)';
   const topBorder = isDark ? 'rgba(255,255,255,.10)' : 'rgba(0,0,0,.10)';
   const handleCol = isDark ? 'rgba(255,255,255,.20)' : 'rgba(0,0,0,.15)';
@@ -20283,31 +20593,31 @@ export function PracticeControlSheet({
               flexShrink: 0,
             }} />
 
-            {/* ── Top row: Mode (left) + Intervals (right) ── */}
+            {/* top row: Mode (左) + Intervals (右) */}
             <div style={{
               display: 'flex', gap: 6,
               padding: '0 12px',
-              height: 110,
-              flexShrink: 0,
+              height: 110, flexShrink: 0,
             }}>
-              {/* Left col: Mode (flex:3) + Zone (flex:1) */}
+              {/* 左列: Mode flex:3 + Zone flex:1 */}
               <div style={{ flex: 0.46, display: 'flex', flexDirection: 'column', gap: 5 }}>
-                <CycleCard
+                {/* Mode: 短按循环，无长按 */}
+                <PressCard
                   title="Mode"
                   value={currentMode.label}
                   icon={currentMode.icon}
                   onTap={cycleMode}
                   isDark={isDark}
-                  style={{ flex: 3 }}
+                  style={{ flex: 3, position: 'relative' }}
                 />
+
+                {/* Zone */}
                 <div style={{ flex: 1, display: 'flex' }}>
                   <AnimatePresence mode="wait" initial={false}>
                     {isBlind ? (
                       <motion.div
                         key="zone-on"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                         transition={{ duration: 0.13 }}
                         style={{ flex: 1, display: 'flex' }}
                       >
@@ -20316,9 +20626,7 @@ export function PracticeControlSheet({
                     ) : (
                       <motion.div
                         key="zone-off"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                         transition={{ duration: 0.13 }}
                         style={cardStyle(isDark, {
                           flex: 1, fontSize: 10,
@@ -20332,45 +20640,45 @@ export function PracticeControlSheet({
                 </div>
               </div>
 
-              {/* Right col: Intervals full height */}
-              <div style={{ flex: 0.54 }}>
-                <CycleCard
+              {/* 右列: Intervals — 短按循环，长按进 L2 */}
+              <div style={{ flex: 0.54, position: 'relative' }}>
+                <PressCard
                   title="Intervals"
                   value={ivLabel}
                   icon="music"
                   onTap={cycleIv}
+                  onLongPress={onOpenIntervalsL2}   // ← Fix 2: 长按进 L2
                   isDark={isDark}
-                  style={{ height: '100%' }}
+                  style={{ height: '100%', position: 'relative' }}
                 />
               </div>
             </div>
 
-            {/* ── Bottom row: Space + Flow ── */}
+            {/* bottom row: Space + Flow */}
             <div style={{
               display: 'flex', gap: 6,
               padding: '6px 12px 16px',
-              height: 90,
-              flexShrink: 0,
+              height: 90, flexShrink: 0,
             }}>
-              <SpaceFlowCard
+              <PressCard
                 title="Space"
                 value={SPACE_LABEL[spacePresetId] ?? 'Full board'}
                 icon="grid"
                 onTap={cycleSpace}
-                onOpenL2={onOpenSpaceL2}
+                onLongPress={onOpenSpaceL2}
                 isDark={isDark}
+                style={{ flex: 1, position: 'relative' }}
               />
-              <SpaceFlowCard
+              <PressCard
                 title="Flow"
                 value={FLOW_LABEL[flowPreset] ?? 'Free'}
                 icon="flow"
                 onTap={cycleFlow}
-                onOpenL2={onOpenFlowL2}
+                onLongPress={onOpenFlowL2}
                 isDark={isDark}
+                style={{ flex: 1, position: 'relative' }}
               />
             </div>
-
-            {/* 无 TabBar — 由 App 层统一管理 */}
           </motion.div>
         </>
       )}
@@ -20380,25 +20688,11 @@ export function PracticeControlSheet({
 </file>
 
 <file path="src/trainers/IntervalsTrainer.jsx">
-// trainers/IntervalsTrainer.jsx  — v7b L0 + corrected L1/L2/L3 layer system
-//
-// Layer architecture (corrected):
-//   L0 — main training stage, always present
-//   L1 — grows from BottomQuickStatusBar upward (lightweight instant control)
-//        trigger: swipe-up on bar, or tap bar
-//        dismiss: swipe-down, tap outside
-//   L2 — iOS Control Center gather layer (center float)
-//        trigger: long-press on L1 section label (wired via onContextMenu)
-//        dismiss: tap backdrop, swipe-down
-//   L3 — full editor shell (page push)
-//        trigger: "深度设置 →" inside L2
-//        dismiss: back button
-//
-// L0 animation when L1 open: scale(0.96) + blur(4px)
-// L0+L1 animation when L2 open: additional dimming via L2Overlay backdrop
+// trainers/IntervalsTrainer.jsx — v8 fixes
+// Fix 1: overflow:hidden on root → 防止页面可滚动/位置偏移
 
 import React, {
-  useState, useEffect, useCallback, useContext, useRef, useMemo,
+  useState, useEffect, useCallback, useContext, useRef,
 } from 'react';
 import { motion } from 'framer-motion';
 import { ThemeContext } from '../contexts';
@@ -20408,79 +20702,62 @@ import { useAudioEngine } from '../hooks/useAudioEngine';
 import { useIntervalQuestion } from '../hooks/useIntervalQuestion';
 import { SPACE_PRESETS } from './intervals/constants';
 
-// L0
-import { TopUtilityRail }         from '../components/intervals/l0/TopUtilityRail';
-import { FindModeCapsules }        from '../components/intervals/l0/FindModeCapsules';
-import { FocusCard }               from '../components/intervals/l0/FocusCard';
-import { PositionStripPro }        from '../components/intervals/l0/PositionStripPro';
-import { FretboardStageCard }      from '../components/intervals/l0/FretboardStageCard';
-import { BottomQuickStatusBar }    from '../components/intervals/l0/BottomQuickStatusBar';
+import { TopUtilityRail }      from '../components/intervals/l0/TopUtilityRail';
+import { FindModeCapsules }     from '../components/intervals/l0/FindModeCapsules';
+import { FocusCard }            from '../components/intervals/l0/FocusCard';
+import { PositionStripPro }     from '../components/intervals/l0/PositionStripPro';
+import { FretboardStageCard }   from '../components/intervals/l0/FretboardStageCard';
+import { BottomQuickStatusBar } from '../components/intervals/l0/BottomQuickStatusBar';
+import { PracticeControlSheet } from '../components/intervals/l1/PracticeControlSheet';
+import { SpaceEditorL2 }        from '../components/intervals/l2/SpaceEditorL2';
+import { FlowEditorL2 }         from '../components/intervals/l2/FlowEditorL2';
+import { IntervalsEditorL2 }    from '../components/intervals/l2/IntervalsEditorL2';
+import { SpaceEditorL3 }        from '../components/intervals/l3/SpaceEditorL3';
+import { FlowEditorL3 }         from '../components/intervals/l3/FlowEditorL3';
+import { IntervalsEditorL3 }    from '../components/intervals/l3/IntervalsEditorL3';
 
-// L1
-import { PracticeControlSheet }    from '../components/intervals/l1/PracticeControlSheet';
-
-// L2
-import { SpaceEditorL2 }           from '../components/intervals/l2/SpaceEditorL2';
-import { FlowEditorL2 }            from '../components/intervals/l2/FlowEditorL2';
-import { IntervalsEditorL2 }       from '../components/intervals/l2/IntervalsEditorL2';
-
-// L3
-import { SpaceEditorL3 }           from '../components/intervals/l3/SpaceEditorL3';
-import { FlowEditorL3 }            from '../components/intervals/l3/FlowEditorL3';
-import { IntervalsEditorL3 }       from '../components/intervals/l3/IntervalsEditorL3';
-
-const OPEN_MIDI = [40, 45, 50, 55, 59, 64];
-const CORRECT_COOLDOWN_MS = 1000;
-const ALL_INTERVALS = INTERVAL_LABELS.filter(l => l !== 'R');
+const OPEN_MIDI         = [40, 45, 50, 55, 59, 64];
+const CORRECT_COOLDOWN  = 1000;
+const ALL_INTERVALS     = INTERVAL_LABELS.filter(l => l !== 'R');
 
 function computeViewport(rootFret, targetFret, total = 12, width = 5) {
-  const lo  = Math.min(rootFret, targetFret);
-  const hi  = Math.max(rootFret, targetFret);
-  const w   = Math.max(width, hi - lo + 1);
-  const ctr = Math.round(lo + (hi - lo) / 2 - w / 2);
+  const lo   = Math.min(rootFret, targetFret);
+  const hi   = Math.max(rootFret, targetFret);
+  const w    = Math.max(width, hi - lo + 1);
+  const ctr  = Math.round(lo + (hi - lo) / 2 - w / 2);
   const left = Math.max(0, Math.min(ctr, total - w));
   return { min: left, max: left + w - 1 };
 }
 
-function spacePresetLabel(id) {
-  const map = { full:'Full', pos1:'1–5', pos5:'5–9', ead:'EAD', custom:'Custom' };
-  return map[id] ?? 'Full';
-}
-function flowPresetLabel(id) {
-  const map = { free:'Free', 'low-high':'↑', 'high-low':'↓', custom:'···' };
-  return map[id] ?? 'Free';
-}
+const spaceLabel = id => ({ full:'Full', pos1:'1–5', pos5:'5–9', ead:'EAD', custom:'Custom' })[id] ?? 'Full';
+const flowLabel  = id => ({ free:'Free', 'low-high':'↑', 'high-low':'↓', custom:'···' })[id] ?? 'Free';
 
 export function IntervalTrainer({ settings, onSettings }) {
   const themeCtx = useContext(ThemeContext);
   const isDark   = themeCtx?.dark ?? true;
 
-  // ── Training state ────────────────────────────────────────
-  const [activeMode,        setActiveMode]       = useState('findRoot');
-  const [currentQuestion,   setCurrentQuestion]  = useState(null);
-  const [answerState,       setAnswerState]       = useState('idle');
-  const [micActive,         setMicActive]         = useState(false);
-  const [viewportMin,       setViewportMin]       = useState(0);
-  const [viewportMax,       setViewportMax]       = useState(4);
-  const [score,             setScore]             = useState({ correct:0, total:0 });
-  const [streak,            setStreak]            = useState(0);
+  const [activeMode,        setActiveMode]      = useState('findRoot');
+  const [currentQuestion,   setCurrentQuestion] = useState(null);
+  const [answerState,       setAnswerState]     = useState('idle');
+  const [micActive,         setMicActive]       = useState(false);
+  const [viewportMin,       setViewportMin]     = useState(0);
+  const [viewportMax,       setViewportMax]     = useState(4);
+  const [score,             setScore]           = useState({ correct:0, total:0 });
+  const [streak,            setStreak]          = useState(0);
 
-  // ── Settings state ────────────────────────────────────────
-  const [intervalsPreset,   setIntervalsPreset]   = useState('all');
-  const [selectedIntervals, setSelectedIntervals]  = useState([]);
-  const [spacePresetId,     setSpacePresetId]      = useState('full');
-  const [spaceSettings,     setSpaceSettings]      = useState({ fretRange:{ min:0, max:12 }, strings:null });
-  const [flowPreset,        setFlowPreset]         = useState('free');
-  const [positionsPerStr,   setPosPerStr]          = useState(3);
-  const [practiceMode,      setPracticeMode]       = useState('learning'); // 'learning'|'blind'|'rootFirst'|'coreDrill'
-  const [zoneId,            setZoneId]             = useState('off');      // 'off'|'low'|'mid'|'high' (blind only)
+  const [intervalsPreset,   setIntervalsPreset]  = useState('all');
+  const [selectedIntervals, setSelectedIntervals]= useState([]);
+  const [spacePresetId,     setSpacePresetId]    = useState('full');
+  const [spaceSettings,     setSpaceSettings]    = useState({ fretRange:{ min:0, max:12 }, strings:null });
+  const [flowPreset,        setFlowPreset]       = useState('free');
+  const [positionsPerStr,   setPosPerStr]        = useState(3);
+  const [practiceMode,      setPracticeMode]     = useState('learning');
+  const [zoneId,            setZoneId]           = useState('off');
 
-  // ── Layer state ───────────────────────────────────────────
   const [l1Open,   setL1Open]   = useState(false);
-  const [l2Active, setL2Active] = useState(null); // 'space'|'flow'|'intervals'|null
-  const [l3Active, setL3Active] = useState(null); // same
+  const [l2Active, setL2Active] = useState(null);
+  const [l3Active, setL3Active] = useState(null);
 
-  // ── Question generation ───────────────────────────────────
   const { generateQuestion } = useIntervalQuestion({
     activeMode, spaceSettings, intervalsPreset, selectedIntervals,
   });
@@ -20497,7 +20774,6 @@ export function IntervalTrainer({ settings, onSettings }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { advanceQuestion(); }, [activeMode, spacePresetId, intervalsPreset, selectedIntervals.join(',')]);
 
-  // ── Answer logic ──────────────────────────────────────────
   const correctRef = useRef(false);
 
   const handleCorrect = useCallback(() => {
@@ -20507,7 +20783,7 @@ export function IntervalTrainer({ settings, onSettings }) {
     setScore(s => ({ correct:s.correct+1, total:s.total+1 }));
     setStreak(s => s+1);
     haptic?.('success');
-    setTimeout(() => { correctRef.current = false; advanceQuestion(); }, CORRECT_COOLDOWN_MS);
+    setTimeout(() => { correctRef.current = false; advanceQuestion(); }, CORRECT_COOLDOWN);
   }, [advanceQuestion]);
 
   const handleWrong = useCallback(() => {
@@ -20537,26 +20813,15 @@ export function IntervalTrainer({ settings, onSettings }) {
 
   const { rms } = useAudioEngine({ onPitchDetected:handlePitchDetected, enabled:micActive });
 
-  // ── Settings handlers ─────────────────────────────────────
-  const handleModeChange = useCallback((id) => {
-    setActiveMode(id); setAnswerState('idle');
-  }, []);
-
-  const handleToggleInterval = useCallback((ivl) => {
+  const handleModeChange    = useCallback((id) => { setActiveMode(id); setAnswerState('idle'); }, []);
+  const handleToggleInterval= useCallback((ivl) => {
     setSelectedIntervals(prev => {
       if (prev.length===0) return ALL_INTERVALS.filter(i => i!==ivl);
-      if (prev.includes(ivl)) {
-        const next = prev.filter(i => i!==ivl);
-        return next.length===0 ? [] : next;
-      }
+      if (prev.includes(ivl)) { const next = prev.filter(i => i!==ivl); return next.length===0 ? [] : next; }
       const next = [...prev, ivl];
       return next.length===ALL_INTERVALS.length ? [] : next;
     });
     setIntervalsPreset('custom');
-  }, []);
-
-  const handleSelectAll = useCallback(() => {
-    setSelectedIntervals([]); setIntervalsPreset('all');
   }, []);
 
   const handleSpacePreset = useCallback((id) => {
@@ -20565,59 +20830,61 @@ export function IntervalTrainer({ settings, onSettings }) {
     if (p) setSpaceSettings({ fretRange:p.fretRange, strings:p.strings });
   }, []);
 
-  const handleFlowPreset = useCallback((id) => { setFlowPreset(id); }, []);
-
   const handleThemeToggle = useCallback(() => {
     if (!onSettings) return;
     onSettings({ ...settings, colorMode:isDark?'light':'dark', themeId:isDark?'ios-light':'violet-deep' });
   }, [isDark, settings, onSettings]);
 
-  // ── Layer open helpers ────────────────────────────────────
-  // Open L2: close L1 first (brief delay so L1 exit animation plays)
   const openL2 = useCallback((which) => {
     setL1Open(false);
-    setTimeout(() => setL2Active(which), 180);
+    setTimeout(() => setL2Active(which), 160);
   }, []);
 
-  // Open L3: close L2 first
   const openL3 = useCallback((which) => {
     setL2Active(null);
-    setTimeout(() => setL3Active(which), 180);
+    setTimeout(() => setL3Active(which), 160);
   }, []);
 
-  // ── Highlights ────────────────────────────────────────────
   const highlights = currentQuestion ? [
     { string:currentQuestion.rootString,   fret:currentQuestion.rootFret,   type:'root' },
     { string:currentQuestion.targetString, fret:currentQuestion.targetFret,
       type: answerState==='correct' ? 'correct' : answerState==='wrong' ? 'wrong' : 'interval' },
   ] : [];
 
-  const tabBarH = 'calc(60px + env(safe-area-inset-bottom, 0px))';
-  const pageBg  = isDark ? '#000' : '#F2F2F7';
-
-  // ── L2/L3 open: deeper blur on L0 ────────────────────────
+  const tabBarH   = 'calc(60px + env(safe-area-inset-bottom, 0px))';
+  const pageBg    = isDark ? '#000' : '#F2F2F7';
   const anyL2Open = l2Active !== null;
-  const anyL3Open = l3Active !== null;
 
   return (
-    <div style={{ flex:1, display:'flex', flexDirection:'column', minHeight:0, background:pageBg, paddingBottom:tabBarH }}>
-
-      {/* L0 — scales/blurs when L1 or L2 open */}
+    // ── FIX 1: overflow:hidden 防止页面可滚动 ────────────────
+    <div style={{
+      flex: 1,
+      display: 'flex',
+      flexDirection: 'column',
+      minHeight: 0,
+      background: pageBg,
+      paddingBottom: tabBarH,
+      overflow: 'hidden',       // ← 关键：锁定视口，不允许滚动
+      position: 'relative',
+    }}>
+      {/* L0 */}
       <motion.div
         animate={{
           scale:  l1Open || anyL2Open ? 0.96 : 1,
           filter: l1Open || anyL2Open ? 'blur(4px) brightness(0.75)' : 'blur(0px) brightness(1)',
         }}
         transition={{ type:'spring', stiffness:380, damping:38 }}
-        style={{ flex:1, display:'flex', flexDirection:'column', minHeight:0, transformOrigin:'50% 40%' }}
+        style={{
+          flex: 1, display: 'flex', flexDirection: 'column',
+          minHeight: 0, transformOrigin: '50% 40%',
+          overflow: 'hidden',  // ← L0 内部也不允许溢出
+        }}
       >
         <TopUtilityRail
           micActive={micActive} rms={rms} answerState={answerState}
           onMicToggle={() => setMicActive(m => !m)}
-          onStats={() => {}}
-          onTheme={handleThemeToggle}
-          onSettings={() => setL1Open(true)}
-          isDark={isDark}
+          onStats={() => {}} onTheme={handleThemeToggle}
+          onSettings={() => setL1Open(true)} isDark={isDark}
         />
         <FindModeCapsules activeMode={activeMode} onModeChange={handleModeChange} />
         <FocusCard
@@ -20638,13 +20905,13 @@ export function IntervalTrainer({ settings, onSettings }) {
         <BottomQuickStatusBar
           activeMode={activeMode}
           intervalsPreset={intervalsPreset}
-          spacePresetLabel={spacePresetLabel(spacePresetId)}
-          flowPresetLabel={flowPresetLabel(flowPreset)}
+          spacePresetLabel={spaceLabel(spacePresetId)}
+          flowPresetLabel={flowLabel(flowPreset)}
           onOpen={() => setL1Open(true)}
         />
       </motion.div>
 
-      {/* ── L1 — grows from BottomQuickStatusBar upward ──── */}
+      {/* L1 */}
       <PracticeControlSheet
         open={l1Open}
         onClose={() => setL1Open(false)}
@@ -20660,14 +20927,14 @@ export function IntervalTrainer({ settings, onSettings }) {
         spacePresetId={spacePresetId}
         onSpacePreset={handleSpacePreset}
         flowPreset={flowPreset}
-        onFlowPreset={handleFlowPreset}
+        onFlowPreset={setFlowPreset}
         onOpenSpaceL2={() => openL2('space')}
         onOpenFlowL2={() => openL2('flow')}
         onOpenIntervalsL2={() => openL2('intervals')}
         bottomOffset={`calc(${tabBarH})`}
       />
 
-      {/* ── L2 — iOS Control Center gather layer ─────────── */}
+      {/* L2 */}
       <SpaceEditorL2
         isOpen={l2Active === 'space'}
         onClose={() => setL2Active(null)}
@@ -20679,7 +20946,7 @@ export function IntervalTrainer({ settings, onSettings }) {
         isOpen={l2Active === 'flow'}
         onClose={() => setL2Active(null)}
         flowPreset={flowPreset}
-        onFlowChange={handleFlowPreset}
+        onFlowChange={setFlowPreset}
         onOpenL3={() => openL3('flow')}
       />
       <IntervalsEditorL2
@@ -20695,7 +20962,7 @@ export function IntervalTrainer({ settings, onSettings }) {
         onOpenL3={() => openL3('intervals')}
       />
 
-      {/* ── L3 — full editor shell ───────────────────────── */}
+      {/* L3 */}
       <SpaceEditorL3
         isOpen={l3Active === 'space'}
         onClose={() => setL3Active(null)}
