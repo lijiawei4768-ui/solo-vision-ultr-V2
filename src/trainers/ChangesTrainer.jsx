@@ -29,7 +29,7 @@ import { useAudioEngine } from "../hooks/useAudioEngine";
 import { useLongPress } from "../hooks/useGestures";
 import { GlassCard, AccentChip, BottomSheet } from "../components/ui";
 import { FretboardSurface } from "../components/Fretboard";
-import { TrainerHeader } from "./TrainerShared";
+import { UniversalTopRail } from "./TrainerShared";
 import { useToast } from "../components/Toast";
 
 function useT() {
@@ -132,11 +132,12 @@ function MiniProgressionStrip({ changes, currentIndex, onExpand }) {
 // ─────────────────────────────────────────────────────────────
 // MAIN COMPONENT
 // ─────────────────────────────────────────────────────────────
-export function ChangesTrainer({ settings, audioEnabled, setAudioEnabled }) {
+export function ChangesTrainer({ settings, audioEnabled, setAudioEnabled, onOpenTuner, onRecalibrate, onOpenSettings }) {
   const T        = useT();
   const tuning   = settings.tuning;
   const toast    = useToast();
   const calibCtx = useContext(CalibContext);
+  const themeCtx = useContext(ThemeContext);
 
   const [progIdx,      setProgIdx]      = useState(4);
   const [difficulty,   setDifficulty]   = useState(4);
@@ -292,17 +293,21 @@ export function ChangesTrainer({ settings, audioEnabled, setAudioEnabled }) {
       flexDirection: "column", 
       flex: 1,
       minHeight: 0,
+      minWidth: 0,
+      width: "100%",
       gap: 14 
     }} {...longPress}>
-      <TrainerHeader
+      <UniversalTopRail
         title="Changes"
-        subtitle="Chord tone voice leading"
-        status={status}
-        streak={streak}
-        score={score}
+        micActive={audioEnabled}
         rms={rms}
-        audioEnabled={audioEnabled}
-        onToggleAudio={() => setAudioEnabled?.(!audioEnabled)}
+        answerState={status === "listening" ? "idle" : status}
+        onMicToggle={() => setAudioEnabled?.(!audioEnabled)}
+        onOpenTuner={onOpenTuner}
+        onRecalibrate={onRecalibrate}
+        onTheme={themeCtx?.toggle}
+        onSettings={onOpenSettings}
+        isDark={themeCtx?.dark ?? true}
       />
 
       
@@ -446,7 +451,10 @@ export function ChangesTrainer({ settings, audioEnabled, setAudioEnabled }) {
       />
 
       {/* ── Fretboard ── */}
-      <FretboardSurface settings={settings} highlights={highlights} tuning={tuning} />
+      <div style={{ height: 12 }} />
+      <div style={{ height: "45%", minHeight: 180 }}>
+        <FretboardSurface settings={settings} highlights={highlights} tuning={tuning} />
+      </div>
 
       {/* ── Level selector (bottom) ── */}
       <GlassCard style={{ padding: "12px 16px" }}>

@@ -1,384 +1,553 @@
-
 // ─────────────────────────────────────────────────────────────
-// DESIGN TOKENS v4.1 — Solo Vision Ultra
-// 主题系统升级：10+ 配色方案 + SPRINGS 动画规范
+// DESIGN TOKENS v6.0 — Solo Vision Ultra
 //
-// Bug 修复 v4.1：
-//   • getTokensForTheme() 增加 themeName 字段
-//   • PALETTE_DEFS 的 theme token 含 name，ControlCenter 可直接读取
-//   • 移除 isDark override 参数（改为在 App/CC 层通过 themeId 同步）
+// v6.0 — Three-Axis Theme System
+//   NEW: getTokensV2({ bgScheme, accentId, surfaceId })
+//        Compose tokens from three independent axes.
 //
-// 6 个可定制区域：
-//   1. bg         — 背景颜色与材质（solid / mesh / gradient-mesh）
-//   2. glass      — GlassCard 模糊 + 边框
-//   3. noteRoot   — 根音点颜色
-//   4. noteTarget — 目标音点颜色
-//   5. arcPair    — 两点连线弧线颜色
-//   6. fretboard  — 指板木色 / 品丝颜色 / 标记点颜色
+//   COMPAT: getTokensForTheme(themeId) still works via
+//           LEGACY_TO_PRESET mapping in theme/presets.js
+//
+//   Trimmed to 11 curated themes (was 23):
+//     Dark  (5): indigo-night, slate-ocean, jade-whisper, mauve-void, warm-noir
+//     Light (6): ios-light, sky-mist, petal-breeze, sage-cloud, linen-dusk,
+//                frost-iris, svu-light
+//
+//   buildTheme() fixed: all themes get correct semantic colors
+//   (positive/warning/negative no longer special-cased to svu-light only)
+//
+// All existing named exports are preserved:
+//   DT, LT, THEMES, THEME_GROUPS, PALETTE_KEYS, PALETTE_DEFS,
+//   SPRINGS, FONT_DISPLAY, FONT_TEXT, FONT_MONO,
+//   getTokensForTheme, getTheme
 // ─────────────────────────────────────────────────────────────
 
+import {
+  BG_SCHEMES,
+  DARK_BG_SCHEMES,
+  LIGHT_BG_SCHEMES,
+  RECOMMENDED_DARK_BG_SCHEMES,
+  RECOMMENDED_LIGHT_BG_SCHEMES,
+  DEFAULT_BG_DARK,
+  DEFAULT_BG_LIGHT,
+} from './theme/bgSchemes.js';
+import { ACCENT_SCHEMES, ACCENT_SCHEME_KEYS, DEFAULT_ACCENT_DARK, DEFAULT_ACCENT_LIGHT } from './theme/accentSchemes.js';
+import { SURFACE_SCHEMES, SURFACE_SCHEME_KEYS, DEFAULT_SURFACE, getSurfaceFilter, getSurfaceBg } from './theme/surfaceSchemes.js';
+import { CURATED_DARK_THEME_IDS, CURATED_LIGHT_THEME_IDS, LEGACY_TO_PRESET, DEFAULT_PRESET, PRESETS, PRESET_KEYS } from './theme/presets.js';
+import { PALETTE_REFERENCES } from './theme/paletteReferences.js';
+
+// ── Fonts ─────────────────────────────────────────────────────
 export const FONT_DISPLAY = "'SF Pro Display', -apple-system, 'Helvetica Neue', sans-serif";
 export const FONT_TEXT    = "'SF Pro Text',    -apple-system, 'Helvetica Neue', sans-serif";
 export const FONT_MONO    = "'SF Mono', 'Fira Code', 'Courier New', monospace";
 
-// ─────────────────────────────────────────────────────────────
-// 工具函数：hex/rgba → rgba with opacity
-// ─────────────────────────────────────────────────────────────
+// ── Utility ───────────────────────────────────────────────────
 function hexToRgba(hex, alpha) {
-  if (!hex) return `rgba(136,117,255,${alpha})`;
+  if (!hex) return `rgba(167,139,250,${alpha})`;
   if (hex.startsWith("rgba") || hex.startsWith("rgb")) {
-    const match = hex.match(/[\d.]+/g);
-    if (match && match.length >= 3) {
-      return `rgba(${match[0]},${match[1]},${match[2]},${alpha})`;
-    }
+    const m = hex.match(/[\d.]+/g);
+    if (m && m.length >= 3) return `rgba(${m[0]},${m[1]},${m[2]},${alpha})`;
     return hex;
   }
-  if (hex.startsWith("linear-gradient")) return hex; // 渐变直接返回
+  if (hex.startsWith("linear-gradient")) return hex;
   const h = hex.replace("#", "");
-  const r = parseInt(h.substring(0, 2), 16);
-  const g = parseInt(h.substring(2, 4), 16);
-  const b = parseInt(h.substring(4, 6), 16);
+  const r = parseInt(h.substring(0,2),16);
+  const g = parseInt(h.substring(2,4),16);
+  const b = parseInt(h.substring(4,6),16);
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
-// ─────────────────────────────────────────────────────────────
-// SPRINGS — 全局动画规范（PART 10.4）
-// ─────────────────────────────────────────────────────────────
-export const SPRINGS = {
-  // ── Navigation ──────────────────────────────────────────────
-  tabSwitch:       { type: "spring", stiffness: 320, damping: 30, mass: 1.0 },
-  pageTransition:  { type: "spring", stiffness: 260, damping: 26, mass: 1.1 },
-  // ── Sheet / Modal ───────────────────────────────────────────
-  sheetPresent:    { type: "spring", stiffness: 280, damping: 28, mass: 1.2 },
-  sheetDismiss:    { type: "spring", stiffness: 350, damping: 34, mass: 0.9 },
-  // ── Tap / Icon ──────────────────────────────────────────────
-  iconTap:         { type: "spring", stiffness: 600, damping: 35 },
-  tap:             { type: "spring", stiffness: 600, damping: 32, mass: 0.5 },
-  iconActivate:    { type: "spring", stiffness: 500, damping: 20 },
-  iconIdle:        { duration: 2, repeat: Infinity, ease: "easeInOut" }, // NOTE: not a spring
-  // ── Trainer Feedback ────────────────────────────────────────
-  correct:         { type: "spring", stiffness: 480, damping: 20, mass: 0.7 },
-  noteCorrect:     { type: "spring", stiffness: 520, damping: 18, mass: 0.6 },
-  wrong:           { type: "spring", stiffness: 400, damping: 22, mass: 0.8 },
-  // ── Card / Content ──────────────────────────────────────────
-  cardExpand:      { type: "spring", stiffness: 340, damping: 28 },
-  cardAppear:      { type: "spring", stiffness: 340, damping: 28, mass: 1.0 },
-  jelly:           { type: "spring", stiffness: 460, damping: 22, mass: 0.8 },
-  // ── Counter / Note ──────────────────────────────────────────
-  counter:         { type: "spring", stiffness: 450, damping: 22 },
-  noteAppear:      { type: "spring", stiffness: 500, damping: 22, mass: 0.6 },
-  // ── Subtle / Ambient ────────────────────────────────────────
-  settle:          { type: "spring", stiffness: 200, damping: 26, mass: 1.3 },
-  pulse:           { type: "spring", stiffness: 150, damping: 12, mass: 1.5 },
-  feather:         { type: "spring", stiffness: 420, damping: 26, mass: 0.6 },
-  typewriter:      { duration: 0.04 },
-};
-
-// ─────────────────────────────────────────────────────────────
-// BASE TOKENS — 深色 / 浅色基础（向后兼容保留）
-// ─────────────────────────────────────────────────────────────
-
-export const DT = {
-  surface0:      "rgba(14,14,16,1)",
-  surface1:      "rgba(255,255,255,0.055)",
-  surface2:      "rgba(255,255,255,0.09)",
-  surface3:      "rgba(255,255,255,0.14)",
-  border:        "rgba(255,255,255,0.10)",
-  borderHi:      "rgba(255,255,255,0.20)",
-  textPrimary:   "rgba(255,255,255,0.95)",
-  textSecondary: "rgba(255,255,255,0.65)",
-  textTertiary:  "rgba(255,255,255,0.40)",
-  accent:        "#8875FF",
-  accentSub:     "rgba(136,117,255,0.16)",
-  accentBorder:  "rgba(136,117,255,0.35)",
-  positive:      "#30D158",
-  negative:      "#FF453A",
-  warning:       "#FFD60A",
-  noteRoot:        "#C99A50",
-  noteRootText:    "#1a0e00",
-  noteRootGlow:    "rgba(201,154,80,0.18)",
-  noteTarget:      "#3CC9B5",
-  noteTargetText:  "#001a16",
-  noteTargetGlow:  "rgba(60,201,181,0.15)",
-  noteScale:       "#30D158",
-  noteScaleText:   "#001a06",
-  noteScaleGlow:   "rgba(48,209,88,0.12)",
-  blur1: "blur(16px)",
-  blur2: "blur(32px)",
-  blur3: "blur(56px)",
-  spring:     { type: "spring", stiffness: 320, damping: 26 },
-  springSnap: { type: "spring", stiffness: 460, damping: 30 },
-  bg: {
-    type:   "mesh",
-    color1: "rgba(30,20,80,0.22)",
-    color2: "rgba(80,20,60,0.14)",
-    color3: "rgba(20,30,60,0.10)",
-  },
-  glass: {
-    blur:      "blur(20px)",
-    surface1:  "rgba(255,255,255,0.055)",
-    border:    "rgba(255,255,255,0.10)",
-    borderTop: "rgba(255,255,255,0.18)",
-  },
-  arcPair: {
-    color: "#8875FF",
-    glow:  "rgba(136,117,255,0.3)",
-  },
-  fretboard: {
-    woodColor:   "rgba(30,25,20,0.95)",
-    fretColor:   "rgba(200,180,140,0.35)",
-    markerColor: "rgba(255,255,255,0.12)",
-  },
-};
-
-export const LT = {
-  surface0:      "#F2F2F7",
-  surface1:      "rgba(255,255,255,0.72)",
-  surface2:      "rgba(255,255,255,0.85)",
-  surface3:      "rgba(0,0,0,0.08)",
-  border:        "rgba(60,60,67,0.18)",
-  borderHi:      "rgba(60,60,67,0.32)",
-  textPrimary:   "#1C1C1E",
-  textSecondary: "#8E8E93",
-  textTertiary:  "#C7C7CC",
-  accent:        "#7B63FF",
-  accentSub:     "rgba(123,99,255,0.10)",
-  accentBorder:  "rgba(123,99,255,0.28)",
-  positive:      "#34C759",
-  negative:      "#FF3B30",
-  warning:       "#FF9500",
-  noteRoot:        "#B8862A",
-  noteRootText:    "#ffffff",
-  noteRootGlow:    "rgba(184,134,42,0.20)",
-  noteTarget:      "#2AB5A2",
-  noteTargetText:  "#ffffff",
-  noteTargetGlow:  "rgba(42,181,162,0.18)",
-  noteScale:       "#28A745",
-  noteScaleText:   "#ffffff",
-  noteScaleGlow:   "rgba(40,167,69,0.15)",
-  blur1: "blur(16px)",
-  blur2: "blur(32px)",
-  blur3: "blur(56px)",
-  spring:     { type: "spring", stiffness: 320, damping: 26 },
-  springSnap: { type: "spring", stiffness: 460, damping: 30 },
-  bg: {
-    type:  "solid",
-    color: "#F2F2F7",
-  },
-  glass: {
-    blur:      "blur(14px)",
-    surface1:  "rgba(255,255,255,0.68)",
-    border:    "rgba(60,60,67,0.18)",
-    borderTop: "rgba(60,60,67,0.28)",
-  },
-  arcPair: {
-    color: "#7B63FF",
-    glow:  "rgba(123,99,255,0.18)",
-  },
-  fretboard: {
-    woodColor:   "rgba(245,240,235,0.96)",
-    fretColor:   "rgba(100,80,60,0.35)",
-    markerColor: "rgba(100,80,60,0.15)",
-  },
-};
-
-// ─────────────────────────────────────────────────────────────
-// THEMES — 12 个完整配色方案
-// dark: true  → OLED 黑色基础
-// dark: false → iOS 白色基础
-// ─────────────────────────────────────────────────────────────
-export const THEMES = {
-
-  "violet-deep": {
-    id: "violet-deep", name: "Violet Deep", dark: true, accent: "#8875FF",
-    bg: { type: "mesh", color1: "rgba(30,20,80,0.22)", color2: "rgba(80,20,60,0.14)", color3: "rgba(20,30,60,0.10)" },
-    glass: { blur: "blur(20px)", surface1: "rgba(255,255,255,0.055)", border: "rgba(255,255,255,0.10)", borderTop: "rgba(255,255,255,0.18)" },
-    noteRoot: "#C99A50", noteTarget: "#8875FF", noteScale: "#30D158",
-    arcPair: { color: "#8875FF", glow: "rgba(136,117,255,0.3)" },
-    fretboard: { woodColor: "rgba(30,25,20,0.95)", fretColor: "rgba(200,180,140,0.35)", markerColor: "rgba(255,255,255,0.12)" },
-  },
-
-  "midnight-blue": {
-    id: "midnight-blue", name: "Midnight Blue", dark: true, accent: "#4A9EFF",
-    bg: { type: "mesh", color1: "rgba(10,30,80,0.28)", color2: "rgba(20,60,120,0.16)", color3: "rgba(5,20,50,0.12)" },
-    glass: { blur: "blur(24px)", surface1: "rgba(255,255,255,0.05)", border: "rgba(100,160,255,0.12)", borderTop: "rgba(100,160,255,0.22)" },
-    noteRoot: "#FFD166", noteTarget: "#4A9EFF", noteScale: "#2ECC71",
-    arcPair: { color: "#4A9EFF", glow: "rgba(74,158,255,0.3)" },
-    fretboard: { woodColor: "rgba(10,20,40,0.95)", fretColor: "rgba(100,160,255,0.30)", markerColor: "rgba(100,160,255,0.15)" },
-  },
-
-  "ember": {
-    id: "ember", name: "Ember", dark: true, accent: "#E8A23C",
-    bg: { type: "mesh", color1: "rgba(80,40,10,0.22)", color2: "rgba(140,60,10,0.16)", color3: "rgba(60,20,5,0.10)" },
-    glass: { blur: "blur(18px)", surface1: "rgba(255,255,255,0.05)", border: "rgba(232,162,60,0.12)", borderTop: "rgba(232,162,60,0.22)" },
-    noteRoot: "#E8A23C", noteTarget: "#3CC9B5", noteScale: "#30D158",
-    arcPair: { color: "#E8A23C", glow: "rgba(232,162,60,0.35)" },
-    fretboard: { woodColor: "rgba(40,25,10,0.96)", fretColor: "rgba(200,150,60,0.35)", markerColor: "rgba(232,162,60,0.15)" },
-  },
-
-  "forest": {
-    id: "forest", name: "Forest", dark: true, accent: "#30D158",
-    bg: { type: "mesh", color1: "rgba(10,50,20,0.24)", color2: "rgba(20,80,30,0.14)", color3: "rgba(5,30,15,0.10)" },
-    glass: { blur: "blur(20px)", surface1: "rgba(255,255,255,0.05)", border: "rgba(48,209,88,0.12)", borderTop: "rgba(48,209,88,0.20)" },
-    noteRoot: "#FFD166", noteTarget: "#30D158", noteScale: "#4A9EFF",
-    arcPair: { color: "#30D158", glow: "rgba(48,209,88,0.30)" },
-    fretboard: { woodColor: "rgba(15,30,15,0.95)", fretColor: "rgba(48,209,88,0.28)", markerColor: "rgba(48,209,88,0.12)" },
-  },
-
-  "crimson": {
-    id: "crimson", name: "Crimson", dark: true, accent: "#FF453A",
-    bg: { type: "mesh", color1: "rgba(80,10,10,0.22)", color2: "rgba(120,20,20,0.14)", color3: "rgba(50,5,5,0.10)" },
-    glass: { blur: "blur(20px)", surface1: "rgba(255,255,255,0.05)", border: "rgba(255,69,58,0.12)", borderTop: "rgba(255,69,58,0.22)" },
-    noteRoot: "#FFD166", noteTarget: "#FF453A", noteScale: "#30D158",
-    arcPair: { color: "#FF453A", glow: "rgba(255,69,58,0.30)" },
-    fretboard: { woodColor: "rgba(40,10,10,0.96)", fretColor: "rgba(255,69,58,0.28)", markerColor: "rgba(255,69,58,0.12)" },
-  },
-
-  "aurora": {
-    id: "aurora", name: "Aurora", dark: true, accent: "#A0E4FF",
-    bg: { type: "gradient-mesh", color1: "rgba(0,200,180,0.16)", color2: "rgba(60,120,255,0.14)", color3: "rgba(140,50,255,0.12)" },
-    glass: { blur: "blur(24px)", surface1: "rgba(255,255,255,0.06)", border: "rgba(160,228,255,0.12)", borderTop: "rgba(160,228,255,0.22)" },
-    noteRoot: "#FFD166", noteTarget: "#A0E4FF", noteScale: "#2ECC71",
-    arcPair: { color: "linear-gradient(90deg, #3CF0D0, #6BA4FF)", glow: "rgba(160,228,255,0.30)" },
-    fretboard: { woodColor: "rgba(10,20,30,0.96)", fretColor: "rgba(160,228,255,0.25)", markerColor: "rgba(160,228,255,0.10)" },
-  },
-
-  "rose-gold": {
-    id: "rose-gold", name: "Rose Gold", dark: true, accent: "#FF9F7F",
-    bg: { type: "mesh", color1: "rgba(100,40,50,0.22)", color2: "rgba(150,80,60,0.14)", color3: "rgba(80,30,40,0.10)" },
-    glass: { blur: "blur(20px)", surface1: "rgba(255,255,255,0.06)", border: "rgba(255,159,127,0.14)", borderTop: "rgba(255,159,127,0.24)" },
-    noteRoot: "#FFD166", noteTarget: "#FF9F7F", noteScale: "#30D158",
-    arcPair: { color: "#FF9F7F", glow: "rgba(255,159,127,0.30)" },
-    fretboard: { woodColor: "rgba(50,20,20,0.96)", fretColor: "rgba(255,159,127,0.28)", markerColor: "rgba(255,159,127,0.12)" },
-  },
-
-  "obsidian": {
-    id: "obsidian", name: "Obsidian", dark: true, accent: "rgba(255,255,255,0.80)",
-    bg: { type: "solid", color: "#000000" },
-    glass: { blur: "blur(12px)", surface1: "rgba(255,255,255,0.04)", border: "rgba(255,255,255,0.07)", borderTop: "rgba(255,255,255,0.12)" },
-    noteRoot: "rgba(255,255,255,0.90)", noteTarget: "rgba(255,255,255,0.60)", noteScale: "rgba(255,255,255,0.45)",
-    arcPair: { color: "rgba(255,255,255,0.60)", glow: "rgba(255,255,255,0.12)" },
-    fretboard: { woodColor: "rgba(5,5,5,0.98)", fretColor: "rgba(255,255,255,0.18)", markerColor: "rgba(255,255,255,0.08)" },
-  },
-
-  // ── 唯一浅色主题（dark: false）────────────────────────────
-  "ios-light": {
-    id: "ios-light", name: "iOS Light", dark: false, accent: "#7B63FF",
-    bg: { type: "solid", color: "#F2F2F7" },
-    glass: { blur: "blur(20px)", surface1: "#FFFFFF", border: "rgba(60,60,67,0.18)", borderTop: "rgba(60,60,67,0.28)" },
-    noteRoot: "#B8862A", noteTarget: "#2AB5A2", noteScale: "#28A745",
-    arcPair: { color: "#7B63FF", glow: "rgba(123,99,255,0.18)" },
-    fretboard: { woodColor: "rgba(245,240,235,0.96)", fretColor: "rgba(100,80,60,0.35)", markerColor: "rgba(100,80,60,0.15)" },
-  },
-
-  "sunset": {
-    id: "sunset", name: "Sunset", dark: true, accent: "#FF7B54",
-    bg: { type: "gradient-mesh", color1: "rgba(255,80,50,0.15)", color2: "rgba(100,20,120,0.18)", color3: "rgba(180,60,80,0.10)" },
-    glass: { blur: "blur(22px)", surface1: "rgba(255,255,255,0.055)", border: "rgba(255,123,84,0.12)", borderTop: "rgba(255,123,84,0.22)" },
-    noteRoot: "#FFD166", noteTarget: "#FF7B54", noteScale: "#A0E4FF",
-    arcPair: { color: "linear-gradient(90deg, #FF7B54, #C44FFF)", glow: "rgba(255,123,84,0.28)" },
-    fretboard: { woodColor: "rgba(35,15,10,0.96)", fretColor: "rgba(255,123,84,0.25)", markerColor: "rgba(255,123,84,0.10)" },
-  },
-
-  "ocean": {
-    id: "ocean", name: "Ocean", dark: true, accent: "#00CED1",
-    bg: { type: "mesh", color1: "rgba(0,80,100,0.24)", color2: "rgba(0,120,140,0.14)", color3: "rgba(0,50,80,0.12)" },
-    glass: { blur: "blur(22px)", surface1: "rgba(255,255,255,0.05)", border: "rgba(0,206,209,0.14)", borderTop: "rgba(0,206,209,0.24)" },
-    noteRoot: "#FFD166", noteTarget: "#00CED1", noteScale: "#5ED0A8",
-    arcPair: { color: "#00CED1", glow: "rgba(0,206,209,0.32)" },
-    fretboard: { woodColor: "rgba(5,25,35,0.96)", fretColor: "rgba(0,206,209,0.28)", markerColor: "rgba(0,206,209,0.12)" },
-  },
-
-  "sakura": {
-    id: "sakura", name: "Sakura", dark: true, accent: "#FF8FA3",
-    bg: { type: "mesh", color1: "rgba(120,30,60,0.20)", color2: "rgba(180,50,90,0.12)", color3: "rgba(80,20,50,0.10)" },
-    glass: { blur: "blur(22px)", surface1: "rgba(255,255,255,0.06)", border: "rgba(255,143,163,0.14)", borderTop: "rgba(255,143,163,0.26)" },
-    noteRoot: "#FFE0A3", noteTarget: "#FF8FA3", noteScale: "#A8E6CF",
-    arcPair: { color: "#FF8FA3", glow: "rgba(255,143,163,0.28)" },
-    fretboard: { woodColor: "rgba(45,15,25,0.96)", fretColor: "rgba(255,143,163,0.25)", markerColor: "rgba(255,143,163,0.10)" },
-  },
-};
-
-// ─────────────────────────────────────────────────────────────
-// getTheme() — 获取 theme 定义对象（不含展开 tokens）
-// ─────────────────────────────────────────────────────────────
-export function getTheme(themeId) {
-  return THEMES[themeId] ?? THEMES["violet-deep"];
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
 }
 
-// ─────────────────────────────────────────────────────────────
-// getTokensForTheme(themeId) — 主入口
-//
-// 返回完整 DT 结构兼容的 token 对象 + 6 区域配置。
-// 设计原则：themeId 决定一切，dark/light 由 theme.dark 决定。
-// 深/浅切换通过切换 themeId（配合 ControlCenter）实现，
-// 不再依赖 settings.colorMode 与 T 之间的手动同步。
-//
-// App.jsx 用法：
-//   const T    = getTokensForTheme(settings.themeId ?? "violet-deep");
-//   const isDark = T.themeDark;   ← 从 T 读，不要另算
-// ─────────────────────────────────────────────────────────────
-export function getTokensForTheme(themeId) {
-  const theme = THEMES[themeId] ?? THEMES["violet-deep"];
-  const base  = theme.dark ? { ...DT } : { ...LT };
+function parseBlurPx(blur) {
+  if (!blur || blur === "none") return 0;
+  const match = String(blur).match(/blur\(([\d.]+)px\)/);
+  return match ? parseFloat(match[1]) : 0;
+}
 
-  const accentSub    = hexToRgba(theme.accent, theme.dark ? 0.16 : 0.10);
-  const accentBorder = hexToRgba(theme.accent, theme.dark ? 0.35 : 0.28);
-  const noteRootGlow   = hexToRgba(theme.noteRoot,   theme.dark ? 0.18 : 0.20);
-  const noteTargetGlow = hexToRgba(theme.noteTarget, theme.dark ? 0.15 : 0.18);
-  const noteScaleGlow  = hexToRgba(theme.noteScale,  theme.dark ? 0.12 : 0.15);
+function scaleRgbaAlpha(input, scale) {
+  if (!input || typeof input !== "string") return input;
+  return input.replace(/rgba\(([^)]+),\s*([\d.]+)\)/g, (_, rgb, alpha) => {
+    const nextAlpha = clamp(parseFloat(alpha) * scale, 0, 1);
+    return `rgba(${rgb},${nextAlpha.toFixed(3)})`;
+  });
+}
+
+// ── Springs ───────────────────────────────────────────────────
+export const SPRINGS = {
+  tabSwitch:      { type:"spring", stiffness:320, damping:30, mass:1.0 },
+  pageTransition: { type:"spring", stiffness:260, damping:26, mass:1.1 },
+  sheetPresent:   { type:"spring", stiffness:280, damping:28, mass:1.2 },
+  sheetDismiss:   { type:"spring", stiffness:350, damping:34, mass:0.9 },
+  iconTap:        { type:"spring", stiffness:600, damping:35 },
+  tap:            { type:"spring", stiffness:600, damping:32, mass:0.5 },
+  iconActivate:   { type:"spring", stiffness:500, damping:20 },
+  iconIdle:       { duration:2, repeat:Infinity, ease:"easeInOut" },
+  correct:        { type:"spring", stiffness:480, damping:20, mass:0.7 },
+  noteCorrect:    { type:"spring", stiffness:520, damping:18, mass:0.6 },
+  wrong:          { type:"spring", stiffness:400, damping:22, mass:0.8 },
+  cardExpand:     { type:"spring", stiffness:340, damping:28 },
+  cardAppear:     { type:"spring", stiffness:340, damping:28, mass:1.0 },
+  jelly:          { type:"spring", stiffness:460, damping:22, mass:0.8 },
+  counter:        { type:"spring", stiffness:450, damping:22 },
+  noteAppear:     { type:"spring", stiffness:500, damping:22, mass:0.6 },
+  settle:         { type:"spring", stiffness:200, damping:26, mass:1.3 },
+  pulse:          { type:"spring", stiffness:150, damping:12, mass:1.5 },
+  feather:        { type:"spring", stiffness:420, damping:26, mass:0.6 },
+  typewriter:     { duration:0.04 },
+  spring:         { type:"spring", stiffness:320, damping:26 },
+  springSnap:     { type:"spring", stiffness:460, damping:30 },
+};
+
+// ─────────────────────────────────────────────────────────────
+// THEME_DEFS (11 curated themes)
+// ─────────────────────────────────────────────────────────────
+const THEME_DEFS = {
+
+  // ── Dark themes (5) ────────────────────────────────────────
+
+  "indigo-night": {
+    dark:true, name:"Indigo Night",
+    base:"#080a1a",
+    accent:"#a78bfa", accentAlt:"#34d399", noteRoot:"#fbbf24",
+    blobA:"rgba(109,40,217,0.32)", blobB:"rgba(59,130,246,0.26)", blobC:"rgba(139,92,246,0.18)",
+    glassBase:"rgba(10,12,32,0.65)", glassBorder:"rgba(167,139,250,0.20)",
+    fretBase:"rgba(8,10,26,1)", fretWire:"rgba(167,139,250,0.30)",
+  },
+
+  "slate-ocean": {
+    dark:true, name:"Slate Ocean",
+    base:"#060e1a",
+    accent:"#38bdf8", accentAlt:"#34d399", noteRoot:"#fbbf24",
+    blobA:"rgba(14,165,233,0.30)", blobB:"rgba(6,182,212,0.24)", blobC:"rgba(56,189,248,0.16)",
+    glassBase:"rgba(6,14,30,0.65)", glassBorder:"rgba(56,189,248,0.20)",
+    fretBase:"rgba(6,14,26,1)", fretWire:"rgba(56,189,248,0.30)",
+  },
+
+  "jade-whisper": {
+    dark:true, name:"Jade Whisper",
+    base:"#060d0b",
+    accent:"#6ee7b7", accentAlt:"#60a5fa", noteRoot:"#fbbf24",
+    blobA:"rgba(16,185,129,0.28)", blobB:"rgba(52,211,153,0.22)", blobC:"rgba(110,231,183,0.14)",
+    glassBase:"rgba(6,14,10,0.65)", glassBorder:"rgba(110,231,183,0.20)",
+    fretBase:"rgba(6,13,9,1)", fretWire:"rgba(110,231,183,0.28)",
+  },
+
+  "mauve-void": {
+    dark:true, name:"Mauve Void",
+    base:"#0c0812",
+    accent:"#e879f9", accentAlt:"#34d399", noteRoot:"#fde68a",
+    blobA:"rgba(168,85,247,0.30)", blobB:"rgba(232,121,249,0.24)", blobC:"rgba(196,181,253,0.16)",
+    glassBase:"rgba(14,8,20,0.65)", glassBorder:"rgba(232,121,249,0.20)",
+    fretBase:"rgba(12,8,18,1)", fretWire:"rgba(232,121,249,0.28)",
+  },
+
+  "warm-noir": {
+    dark:true, name:"Warm Noir",
+    base:"#0d0a06",
+    accent:"#fbbf24", accentAlt:"#34d399", noteRoot:"#fb923c",
+    blobA:"rgba(217,119,6,0.28)", blobB:"rgba(251,191,36,0.22)", blobC:"rgba(252,211,77,0.14)",
+    glassBase:"rgba(18,14,4,0.65)", glassBorder:"rgba(251,191,36,0.18)",
+    fretBase:"rgba(13,10,4,1)", fretWire:"rgba(251,191,36,0.28)",
+  },
+
+  // ── Light themes (6) ───────────────────────────────────────
+
+  "ios-light": {
+    dark:false, name:"iOS Light",
+    base:"#eef2ff",
+    accent:"#6366f1", accentAlt:"#059669", noteRoot:"#d97706",
+    blobA:"rgba(165,180,252,0.45)", blobB:"rgba(196,181,253,0.35)", blobC:"rgba(129,140,248,0.22)",
+    glassBase:"rgba(255,255,255,0.72)", glassBorder:"rgba(99,102,241,0.18)",
+    fretBase:"rgba(238,242,255,0.96)", fretWire:"rgba(99,102,241,0.28)",
+  },
+
+  "sky-mist": {
+    dark:false, name:"Sky Mist",
+    base:"#eef2ff",
+    accent:"#818cf8", accentAlt:"#059669", noteRoot:"#d97706",
+    blobA:"rgba(165,180,252,0.58)", blobB:"rgba(196,181,253,0.48)", blobC:"rgba(129,140,248,0.32)",
+    glassBase:"rgba(255,255,255,0.72)", glassBorder:"rgba(129,140,248,0.22)",
+    fretBase:"rgba(238,242,255,0.96)", fretWire:"rgba(129,140,248,0.30)",
+  },
+
+  "petal-breeze": {
+    dark:false, name:"Petal Breeze",
+    base:"#fff0f8",
+    accent:"#f472b6", accentAlt:"#059669", noteRoot:"#d97706",
+    blobA:"rgba(251,207,232,0.65)", blobB:"rgba(253,186,116,0.45)", blobC:"rgba(244,114,182,0.30)",
+    glassBase:"rgba(255,255,255,0.72)", glassBorder:"rgba(244,114,182,0.20)",
+    fretBase:"rgba(255,240,248,0.96)", fretWire:"rgba(244,114,182,0.28)",
+  },
+
+  "sage-cloud": {
+    dark:false, name:"Sage Cloud",
+    base:"#f0faf5",
+    accent:"#34d399", accentAlt:"#2563eb", noteRoot:"#d97706",
+    blobA:"rgba(110,231,183,0.55)", blobB:"rgba(167,243,208,0.45)", blobC:"rgba(52,211,153,0.30)",
+    glassBase:"rgba(255,255,255,0.72)", glassBorder:"rgba(52,211,153,0.20)",
+    fretBase:"rgba(240,250,245,0.96)", fretWire:"rgba(52,211,153,0.28)",
+  },
+
+  "linen-dusk": {
+    dark:false, name:"Linen Dusk",
+    base:"#fdf8f0",
+    accent:"#f59e0b", accentAlt:"#059669", noteRoot:"#b45309",
+    blobA:"rgba(253,230,138,0.58)", blobB:"rgba(252,211,77,0.45)", blobC:"rgba(245,158,11,0.28)",
+    glassBase:"rgba(255,255,255,0.72)", glassBorder:"rgba(245,158,11,0.20)",
+    fretBase:"rgba(253,248,240,0.96)", fretWire:"rgba(245,158,11,0.28)",
+  },
+
+  "frost-iris": {
+    dark:false, name:"Frost Iris",
+    base:"#f5f0ff",
+    accent:"#a78bfa", accentAlt:"#059669", noteRoot:"#d97706",
+    blobA:"rgba(196,181,253,0.58)", blobB:"rgba(167,139,250,0.45)", blobC:"rgba(139,92,246,0.30)",
+    glassBase:"rgba(255,255,255,0.72)", glassBorder:"rgba(167,139,250,0.22)",
+    fretBase:"rgba(245,240,255,0.96)", fretWire:"rgba(167,139,250,0.30)",
+  },
+
+  // svu-light: SVU HTML prototype color language
+  "svu-light": {
+    dark:false, name:"SVU Light",
+    base:"#eef0ff",
+    accent:"#5a5ad6", accentAlt:"#22a672", noteRoot:"#d97706",
+    blobA:"rgba(90,90,214,0.32)", blobB:"rgba(147,147,255,0.28)", blobC:"rgba(70,70,200,0.18)",
+    glassBase:"rgba(255,255,255,0.72)", glassBorder:"rgba(90,90,214,0.16)",
+    fretBase:"rgba(238,240,255,0.96)", fretWire:"rgba(90,90,214,0.26)",
+  },
+};
+
+// ─────────────────────────────────────────────────────────────
+// buildTheme — from a THEME_DEF, produce a full token object
+// Fixed: all themes now use correct semantic colors by mode
+// ─────────────────────────────────────────────────────────────
+function buildTheme(id, def) {
+  const dark = def.dark;
+
+  // Text — svu-light keeps its exact HTML prototype values
+  const textPrimary   = id === "svu-light"
+    ? "rgba(19,19,42,0.92)"
+    : dark ? "rgba(255,255,255,0.95)" : "rgba(14,14,28,0.92)";
+  const textSecondary = id === "svu-light"
+    ? "rgba(82,82,122,0.88)"
+    : dark ? "rgba(255,255,255,0.62)" : "rgba(60,60,100,0.70)";
+  const textTertiary  = id === "svu-light"
+    ? "rgba(152,152,184,0.80)"
+    : dark ? "rgba(255,255,255,0.38)" : "rgba(60,60,100,0.42)";
+
+  // Surfaces
+  const surface0 = def.base;
+  const surface1 = def.glassBase;
+  const surface2 = dark
+    ? def.glassBase.replace(/[\d.]+\)$/, s => String(Math.min(0.85, parseFloat(s)+0.12)) + ")")
+    : "rgba(255,255,255,0.82)";
+  const surface3 = dark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.06)";
+
+  // Borders
+  const border   = dark ? def.glassBorder : def.glassBorder.replace(/[\d.]+\)$/, "0.14)");
+  const borderHi = dark
+    ? def.glassBorder.replace(/[\d.]+\)$/, s => String(Math.min(0.40, parseFloat(s)*1.8)) + ")")
+    : def.glassBorder.replace(/[\d.]+\)$/, "0.28)");
+
+  // Accent derivatives
+  const accentSub    = hexToRgba(def.accent, dark ? 0.16 : 0.10);
+  const accentBorder = hexToRgba(def.accent, dark ? 0.36 : 0.28);
+
+  // Note dot colors
+  const noteRoot       = def.noteRoot;
+  const noteRootGlow   = hexToRgba(noteRoot, dark ? 0.22 : 0.24);
+  const noteTarget     = def.accent;
+  const noteTargetGlow = hexToRgba(noteTarget, dark ? 0.18 : 0.20);
+  const noteScale      = def.accentAlt;
+  const noteScaleGlow  = hexToRgba(noteScale, dark ? 0.14 : 0.16);
+
+  // Semantic colors — now correctly split by dark/light for all themes
+  // svu-light retains its HTML prototype exact values
+  const positive = id === "svu-light" ? "#22a672" : dark ? "#30D158" : "#059669";
+  const negative = id === "svu-light" ? "#c24050" : dark ? "#FF453A" : "#dc2626";
+  const warning  = id === "svu-light" ? "#c07830" : dark ? "#FFD60A" : "#d97706";
 
   return {
-    ...base,
+    themeId:   id,
+    themeName: def.name,
+    themeDark: dark,
+
+    surface0, surface1, surface2, surface3,
+    textPrimary, textSecondary, textTertiary,
+    border, borderHi,
+    accent:      def.accent,
+    accentSub,
+    accentBorder,
+    positive, negative, warning,
+
+    noteRoot, noteRootText: dark ? "#1a0e00" : "#ffffff", noteRootGlow,
+    noteTarget, noteTargetText: dark ? "#001a16" : "#ffffff", noteTargetGlow,
+    noteScale, noteScaleText: dark ? "#001a06" : "#ffffff", noteScaleGlow,
+
+    blur1: "blur(16px)", blur2: "blur(32px)", blur3: "blur(56px)",
+
+    spring:     SPRINGS.spring,
+    springSnap: SPRINGS.springSnap,
+
+    bg: {
+      type:   dark ? "mesh" : "mesh-light",
+      animType: "mesh",
+      base:   def.base,
+      blobA:  def.blobA,
+      blobB:  def.blobB,
+      blobC:  def.blobC,
+    },
+    glass: {
+      blur:      `blur(${dark ? 22 : 20}px) saturate(180%)`,
+      surface1:  def.glassBase,
+      border:    def.glassBorder,
+      borderTop: def.glassBorder.replace(/[\d.]+\)$/, s => String(Math.min(0.40, parseFloat(s)*1.9)) + ")"),
+    },
+    arcPair: {
+      color: def.accent,
+      glow:  hexToRgba(def.accent, dark ? 0.32 : 0.22),
+    },
+    fretboard: {
+      woodColor:   def.fretBase,
+      fretColor:   def.fretWire,
+      markerColor: def.fretWire.replace(/[\d.]+\)$/, s => String(parseFloat(s)*0.44) + ")"),
+    },
+  };
+}
+
+// Build all 11 curated themes
+export const THEMES = Object.fromEntries(
+  Object.entries(THEME_DEFS).map(([id, def]) => [id, { id, ...buildTheme(id, def) }])
+);
+
+// ─────────────────────────────────────────────────────────────
+// getTokensV2 — NEW three-axis token composer
+// ─────────────────────────────────────────────────────────────
+export function getTokensV2({ bgScheme: bgId, accentId, surfaceId, materialTuning = null, accentOverride = null }) {
+  const bg      = BG_SCHEMES[bgId]      ?? BG_SCHEMES["frost-light"];
+  const accentBase = ACCENT_SCHEMES[accentId] ?? ACCENT_SCHEMES["indigo"];
+  const accent  = accentOverride ? { ...accentBase, ...accentOverride } : accentBase;
+  const surface = SURFACE_SCHEMES[surfaceId] ?? SURFACE_SCHEMES["glass-mid"];
+  const tuning = {
+    blurOffset: materialTuning?.blurOffset ?? 0,
+    saturateBoost: materialTuning?.saturateBoost ?? 0,
+    alphaShift: materialTuning?.alphaShift ?? 0,
+    borderBoost: materialTuning?.borderBoost ?? 1,
+    shadowBoost: materialTuning?.shadowBoost ?? 1,
+  };
+
+  const dark = bg.dark;
+
+  // ── Text colors ────────────────────────────────────────────
+  const textPrimary   = dark
+    ? "rgba(255,255,255,0.95)"
+    : (bgId === "frost-light" || bgId === "silk-light")
+      ? "rgba(14,14,40,0.92)"       // blue-tinted white bg
+      : bgId === "grain-light"
+        ? "rgba(20,16,12,0.90)"     // warm-tinted
+        : bgId === "petal-light"
+          ? "rgba(30,10,20,0.90)"   // pink-tinted
+          : "rgba(14,14,28,0.92)";  // default light
+
+  const textSecondary = dark
+    ? "rgba(255,255,255,0.62)"
+    : "rgba(60,60,100,0.70)";
+
+  const textTertiary = dark
+    ? "rgba(255,255,255,0.38)"
+    : "rgba(60,60,100,0.42)";
+
+  // ── Glass surface ──────────────────────────────────────────
+  const glassBase   = bg.glassBase;
+  const glassBorder = bg.glassBorder;
+
+  // Scale alpha by surface scheme
+  const targetAlpha = clamp((dark ? surface.darkAlpha : surface.lightAlpha) + tuning.alphaShift, 0.12, 0.97);
+  const surface1    = glassBase.replace(/[\d.]+\)$/, `${targetAlpha})`);
+  const surface2    = dark
+    ? glassBase.replace(/[\d.]+\)$/, s => String(Math.min(0.90, parseFloat(s) + 0.14 + tuning.alphaShift * 0.5)) + ")")
+    : `rgba(255,255,255,${Math.min(0.95, targetAlpha + 0.14)})`;
+  const surface3    = dark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.06)";
+
+  // Borders — scaled by surface borderAlpha multiplier
+  const rawBorderAlpha = dark
+    ? parseFloat(glassBorder.match(/[\d.]+\)$/)?.[0] ?? "0.20")
+    : 0.14;
+  const borderAlpha   = rawBorderAlpha * surface.borderAlpha * tuning.borderBoost;
+  const border        = glassBorder.replace(/[\d.]+\)$/, `${borderAlpha.toFixed(3)})`);
+  const borderHi      = glassBorder.replace(/[\d.]+\)$/, `${Math.min(0.40, borderAlpha * 1.8).toFixed(3)})`);
+
+  // ── Accent derivatives ─────────────────────────────────────
+  const accentColor  = accent.accent;
+  const accentSub    = hexToRgba(accentColor, dark ? 0.16 : 0.10);
+  const accentBorder = hexToRgba(accentColor, dark ? 0.36 : 0.28);
+
+  // ── Note colors ────────────────────────────────────────────
+  const noteRoot       = accent.noteRoot;
+  const noteRootGlow   = hexToRgba(noteRoot, dark ? 0.22 : 0.24);
+  const noteTarget     = accent.noteTarget;
+  const noteTargetGlow = hexToRgba(noteTarget, dark ? 0.18 : 0.20);
+  const noteScale      = accent.noteScale;
+  const noteScaleGlow  = hexToRgba(noteScale, dark ? 0.14 : 0.16);
+
+  // ── Glass composite ────────────────────────────────────────
+  const blurPx = clamp(parseBlurPx(surface.blur) + tuning.blurOffset, 0, 40);
+  const saturateValue = clamp(surface.saturate + tuning.saturateBoost, 100, 260);
+  const blurStr = surface.blur === "none" && blurPx <= 0
+    ? "none"
+    : `blur(${blurPx}px) saturate(${saturateValue}%)`;
+  const shadow = scaleRgbaAlpha(dark ? surface.shadowDark : surface.shadowLight, tuning.shadowBoost);
+
+  return {
+    // Identification
+    themeId:       `${bgId}--${accentId}--${surfaceId}`,
+    themeName:     `${bg.name} · ${accent.name}`,
+    themeDark:     dark,
+    // Three-axis IDs (for reverse lookup)
+    bgScheme:      bgId,
+    accentSchemeId: accentId,
+    surfaceSchemeId: surfaceId,
+
+    // Surfaces
+    surface0: bg.base,
+    surface1,
+    surface2,
+    surface3,
+
+    // Text
+    textPrimary, textSecondary, textTertiary,
+
+    // Borders
+    border, borderHi,
 
     // Accent
-    accent:       theme.accent,
+    accent:      accentColor,
     accentSub,
     accentBorder,
 
+    // Semantic
+    positive:    accent.positive,
+    negative:    accent.negative,
+    warning:     accent.warning,
+
     // Note dots
-    noteRoot:        theme.noteRoot,
-    noteRootText:    theme.dark ? "#1a0e00" : "#ffffff",
-    noteRootGlow,
-    noteTarget:      theme.noteTarget,
-    noteTargetText:  theme.dark ? "#001a16" : "#ffffff",
-    noteTargetGlow,
-    noteScale:       theme.noteScale,
-    noteScaleText:   theme.dark ? "#001a06" : "#ffffff",
-    noteScaleGlow,
+    noteRoot, noteRootText: dark ? "#1a0e00" : "#ffffff", noteRootGlow,
+    noteTarget, noteTargetText: dark ? "#001a16" : "#ffffff", noteTargetGlow,
+    noteScale, noteScaleText: dark ? "#001a06" : "#ffffff", noteScaleGlow,
 
-    // 6 区域
-    bg:        theme.bg,
-    glass:     theme.glass,
-    arcPair:   theme.arcPair,
-    fretboard: theme.fretboard,
+    // Blur helpers
+    blur1: "blur(16px)", blur2: "blur(32px)", blur3: "blur(56px)",
 
-    // 标识（供 App.jsx / ControlCenter 使用）
-    themeId:   theme.id,
-    themeName: theme.name,    // ← Bug fix：增加 name，ControlCenter 展示用
-    themeDark: theme.dark,    // ← Bug fix：isDark 的唯一来源
+    // Springs (backward compat)
+    spring:     SPRINGS.spring,
+    springSnap: SPRINGS.springSnap,
+
+    // Background config (consumed by MeshBackground)
+    bg: {
+      type:     dark ? "mesh" : "mesh-light",
+      animType: bg.animType,
+      base:     bg.base,
+      blobA:    bg.blobA,
+      blobB:    bg.blobB,
+      blobC:    bg.blobC,
+      // Extra per-animType data
+      aurora:   bg.aurora ?? null,
+      silk:     bg.silk   ?? null,
+      grain:    bg.grain  ?? null,
+    },
+
+    // Glass config (consumed by card components)
+    glass: {
+      blur:           blurStr,
+      surface1,
+      border:         glassBorder,
+      borderTop:      glassBorder.replace(/[\d.]+\)$/, s => String(Math.min(0.40, parseFloat(s)*1.9)) + ")"),
+      noiseOverlay:   surface.noiseOverlay,
+      noiseOpacity:   surface.noiseOpacity,
+      insetHighlight: surface.insetHighlight,
+      shadow,
+    },
+
+    // Arc pair (trainer arc colors)
+    arcPair: {
+      color: accentColor,
+      glow:  hexToRgba(accentColor, dark ? 0.32 : 0.22),
+    },
+
+    // Fretboard
+    fretboard: {
+      woodColor:   bg.fretBase,
+      fretColor:   bg.fretWire,
+      markerColor: bg.fretWire.replace(/[\d.]+\)$/, s => String(parseFloat(s)*0.44) + ")"),
+    },
+
+    materialTuning: tuning,
   };
 }
 
 // ─────────────────────────────────────────────────────────────
-// THEME_GROUPS — Settings UI 分组
+// getTokensForTheme — backward-compatible entry point
+// Maps old themeId → getTokensV2 via LEGACY_TO_PRESET
 // ─────────────────────────────────────────────────────────────
+export function getTokensForTheme(themeId) {
+  // 1. Try the 11 curated themes (exact match, legacy path)
+  if (THEMES[themeId]) return THEMES[themeId];
+
+  // 2. Try legacy mapping → three-axis
+  const mapped = LEGACY_TO_PRESET[themeId];
+  if (mapped) return getTokensV2(mapped);
+
+  // 3. Default fallback
+  return THEMES["svu-light"];
+}
+
+export function getTheme(themeId) {
+  return getTokensForTheme(themeId);
+}
+
+// ── THEME_GROUPS (for ControlCenter / ThemePickerSheet) ───────
 export const THEME_GROUPS = {
-  dark:  Object.values(THEMES).filter(t =>  t.dark),
-  light: Object.values(THEMES).filter(t => !t.dark),
+  dark:  Object.values(THEMES).filter(t => t.themeDark),
+  light: Object.values(THEMES).filter(t => !t.themeDark),
 };
 
-// ─────────────────────────────────────────────────────────────
-// 向后兼容层
-// ─────────────────────────────────────────────────────────────
-// PALETTE_KEYS：仅真实 theme IDs（不含 DT/LT）
 export const PALETTE_KEYS = Object.keys(THEMES);
 
-// PALETTE_DEFS：包含 DT/LT（旧代码用）+ 所有 theme 的完整 tokens
+// ── Backward compat exports ───────────────────────────────────
+export const DT = THEMES["indigo-night"];
+export const LT = THEMES["svu-light"];
+
 export const PALETTE_DEFS = {
-  DT,
-  LT,
-  ...Object.fromEntries(
-    Object.keys(THEMES).map(id => [id, getTokensForTheme(id)])
-  ),
+  DT, LT,
+  ...Object.fromEntries(Object.keys(THEMES).map(id => [id, THEMES[id]])),
+};
+
+// ── Re-export three-axis scheme data for convenience ──────────
+export {
+  BG_SCHEMES,
+  DARK_BG_SCHEMES,
+  LIGHT_BG_SCHEMES,
+  RECOMMENDED_DARK_BG_SCHEMES,
+  RECOMMENDED_LIGHT_BG_SCHEMES,
+  DEFAULT_BG_DARK,
+  DEFAULT_BG_LIGHT,
+  ACCENT_SCHEMES,
+  ACCENT_SCHEME_KEYS,
+  DEFAULT_ACCENT_DARK,
+  DEFAULT_ACCENT_LIGHT,
+  SURFACE_SCHEMES,
+  SURFACE_SCHEME_KEYS,
+  DEFAULT_SURFACE,
+  getSurfaceFilter,
+  getSurfaceBg,
+  PRESETS,
+  PRESET_KEYS,
+  DEFAULT_PRESET,
+  CURATED_DARK_THEME_IDS,
+  CURATED_LIGHT_THEME_IDS,
+  LEGACY_TO_PRESET,
+  PALETTE_REFERENCES,
 };

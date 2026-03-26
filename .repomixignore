@@ -7,4 +7,5 @@ scripts/
 *.bat
 *.md
 package-lock.json
-repomix-output.xml
+repomix-output*.xml
+snapshots/

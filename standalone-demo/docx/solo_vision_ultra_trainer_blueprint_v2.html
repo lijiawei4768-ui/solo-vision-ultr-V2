@@ -1,0 +1,614 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+.root{font-family:var(--font-sans);padding:0 0 24px}
+.nav{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:20px;padding-bottom:16px;border-bottom:0.5px solid var(--color-border-tertiary)}
+.navbtn{padding:6px 13px;border-radius:8px;border:0.5px solid var(--color-border-tertiary);background:transparent;color:var(--color-text-secondary);font-size:12px;cursor:pointer;transition:all .15s;font-family:var(--font-sans)}
+.navbtn.on{background:var(--color-background-primary);border-color:var(--color-border-primary);color:var(--color-text-primary);font-weight:500}
+.pane{display:none}.pane.on{display:block}
+.sec{margin-bottom:22px}
+.sec-hd{display:flex;align-items:center;gap:8px;margin-bottom:11px}
+.lbadge{font-size:10px;font-weight:500;padding:3px 8px;border-radius:5px;letter-spacing:.04em;flex-shrink:0}
+.lb0{background:var(--color-background-info);color:var(--color-text-info)}
+.lb1{background:var(--color-background-success);color:var(--color-text-success)}
+.lb2{background:var(--color-background-warning);color:var(--color-text-warning)}
+.lb3{background:var(--color-background-danger);color:var(--color-text-danger)}
+.lbsh{background:var(--color-background-secondary);color:var(--color-text-tertiary);border:0.5px solid var(--color-border-secondary)}
+.lbno{background:transparent;color:var(--color-text-tertiary);border:0.5px dashed var(--color-border-tertiary)}
+.sec-title{font-size:13px;font-weight:500;color:var(--color-text-primary)}
+.mission{padding:12px 14px;border-radius:10px;border-left:3px solid var(--color-border-info);background:var(--color-background-secondary);font-size:13px;color:var(--color-text-secondary);line-height:1.55;margin-bottom:18px}
+.mission strong{color:var(--color-text-primary);font-weight:500}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.grid4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px}
+.card{border:0.5px solid var(--color-border-tertiary);border-radius:9px;padding:10px 12px;background:var(--color-background-secondary)}
+.card.new{border-color:var(--color-border-warning)}
+.card.reuse{border-style:dashed}
+.card.blocked{opacity:.45;border-style:dashed}
+.cbadge{display:inline-block;font-size:10px;padding:2px 6px;border-radius:4px;margin-bottom:5px;font-weight:500}
+.cb-new{background:var(--color-background-warning);color:var(--color-text-warning)}
+.cb-re{background:var(--color-background-success);color:var(--color-text-success)}
+.cb-up{background:var(--color-background-info);color:var(--color-text-info)}
+.cb-no{background:var(--color-background-secondary);color:var(--color-text-tertiary);border:0.5px solid var(--color-border-tertiary)}
+.cn{font-size:13px;font-weight:500;color:var(--color-text-primary);margin-bottom:3px}
+.cs{font-size:11px;color:var(--color-text-tertiary);line-height:1.45}
+.l1box{border:0.5px solid var(--color-border-tertiary);border-radius:11px;overflow:hidden;background:var(--color-background-primary)}
+.l1row{display:grid;border-bottom:0.5px solid var(--color-border-tertiary)}
+.l1row:last-child{border-bottom:none}
+.l1cell{padding:10px 13px;border-right:0.5px solid var(--color-border-tertiary)}
+.l1cell:last-child{border-right:none}
+.l1cell.core{background:rgba(59,130,246,.04)}
+.l1cell.shared{background:rgba(34,197,94,.04)}
+.l1cell.defer{opacity:.5;background:repeating-linear-gradient(45deg,transparent,transparent 4px,rgba(0,0,0,.015) 4px,rgba(0,0,0,.015) 8px)}
+.l1lbl{font-size:10px;font-weight:500;color:var(--color-text-tertiary);letter-spacing:.04em;text-transform:uppercase;margin-bottom:3px}
+.l1val{font-size:13px;font-weight:500;color:var(--color-text-primary)}
+.l1sub{font-size:11px;color:var(--color-text-tertiary);margin-top:2px;line-height:1.4}
+.note{padding:9px 12px;border-radius:8px;background:var(--color-background-secondary);font-size:12px;color:var(--color-text-secondary);line-height:1.5;margin-top:9px}
+.note.warn{border-left:3px solid var(--color-border-warning);background:rgba(234,179,8,.05)}
+.note.deny{border-left:3px solid var(--color-border-danger);background:rgba(239,68,68,.04)}
+.modelist{display:flex;flex-direction:column;gap:5px}
+.moderow{display:flex;align-items:flex-start;gap:10px;padding:9px 12px;border-radius:8px;border:0.5px solid var(--color-border-tertiary);background:var(--color-background-secondary)}
+.modeidx{font-size:11px;font-weight:500;color:var(--color-text-tertiary);min-width:16px;padding-top:1px}
+.modebody{}
+.modename{font-size:13px;font-weight:500;color:var(--color-text-primary)}
+.modesub{font-size:11px;color:var(--color-text-tertiary);margin-top:2px;line-height:1.4}
+.divider{height:0.5px;background:var(--color-border-tertiary);margin:18px 0}
+.tag-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.tag{font-size:11px;padding:3px 9px;border-radius:5px;border:0.5px solid var(--color-border-tertiary);color:var(--color-text-secondary)}
+.tag.accent{border-color:var(--color-border-info);background:var(--color-background-info);color:var(--color-text-info)}
+.overview-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:20px}
+.ov-card{border:0.5px solid var(--color-border-tertiary);border-radius:10px;padding:12px;background:var(--color-background-secondary);text-align:center}
+.ov-name{font-size:12px;font-weight:500;color:var(--color-text-primary);margin-bottom:4px}
+.ov-verb{font-size:11px;color:var(--color-text-secondary);margin-bottom:6px;line-height:1.35}
+.ov-ref{font-size:10px;color:var(--color-text-tertiary)}
+.ov-card.ref{border-color:var(--color-border-success);background:rgba(34,197,94,.04)}
+.spacebar{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px}
+.sp-cell{padding:8px 10px;border-radius:7px;border:0.5px solid var(--color-border-tertiary);background:var(--color-background-secondary)}
+.sp-lbl{font-size:10px;color:var(--color-text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px}
+.sp-val{font-size:12px;color:var(--color-text-primary)}
+.sp-note{font-size:10px;color:var(--color-text-tertiary);margin-top:2px}
+.correctbox{border:0.5px solid var(--color-border-success);border-radius:8px;padding:9px 12px;background:rgba(34,197,94,.04);font-size:12px;color:var(--color-text-success);margin-bottom:8px}
+.wrongbox{border:0.5px dashed var(--color-border-danger);border-radius:8px;padding:9px 12px;background:rgba(239,68,68,.04);font-size:12px;color:var(--color-text-danger);margin-bottom:8px}
+.wrongbox .wt{font-weight:500;margin-bottom:4px}
+.li{padding-left:14px;position:relative;margin-bottom:3px}
+.li:before{content:'·';position:absolute;left:4px;color:var(--color-text-tertiary)}
+</style>
+
+<div class="root">
+
+<div class="nav">
+  <button class="navbtn on" onclick="show('overview')">总览</button>
+  <button class="navbtn" onclick="show('notes')">Notes → Fretboard Literacy</button>
+  <button class="navbtn" onclick="show('scales')">Scales → Scale Systems</button>
+  <button class="navbtn" onclick="show('chords')">Changes → Chords</button>
+  <button class="navbtn" onclick="show('shared')">共享层 + 执行顺序</button>
+</div>
+
+<div id="pane-overview" class="pane on">
+
+  <div class="overview-grid">
+    <div class="ov-card ref">
+      <div class="ov-name">Intervals</div>
+      <div class="ov-verb">练关系视觉 — root 与目标音之间的距离与识别</div>
+      <div class="ov-ref">已完成 L0–L3 · 参考母结构</div>
+    </div>
+    <div class="ov-card">
+      <div class="ov-name">Notes → Fretboard Literacy</div>
+      <div class="ov-verb">练指板识字 — 在音乐约束下定位音高信息</div>
+      <div class="ov-ref">4 modes · 先补训练维度</div>
+    </div>
+    <div class="ov-card">
+      <div class="ov-name">Scales → Scale Systems</div>
+      <div class="ov-verb">练系统移动 — 在不同音阶系统里组织、连接、应用</div>
+      <div class="ov-ref">5 modes + 系统层 · 先做</div>
+    </div>
+    <div class="ov-card">
+      <div class="ov-name">Changes → Chords</div>
+      <div class="ov-verb">练和声导航 — 识别、定位、连接并在进行中使用和弦</div>
+      <div class="ov-ref">5 modes · 模式边界最复杂</div>
+    </div>
+  </div>
+
+  <div class="correctbox">四边界铁律：Notes 练识字 · Intervals 练关系 · Scales 练系统 · Chords 练和声。边界不能互吞。</div>
+
+  <div class="sec">
+    <div class="sec-hd"><span class="lbadge lbno">Space / Flow 权重裁决</span></div>
+    <div class="spacebar">
+      <div class="sp-cell">
+        <div class="sp-lbl">Notes</div>
+        <div class="sp-val">Space 强 · Flow 轻量</div>
+        <div class="sp-note">Flow 只做出题顺序偏向，不是路径训练</div>
+      </div>
+      <div class="sp-cell">
+        <div class="sp-lbl">Scales</div>
+        <div class="sp-val">Space 强 · Flow 强</div>
+        <div class="sp-note">唯一一个 Space+Flow 都成为训练引擎的 trainer</div>
+      </div>
+      <div class="sp-cell">
+        <div class="sp-lbl">Chords</div>
+        <div class="sp-val">Space 进 L2 · Flow 暂缓</div>
+        <div class="sp-note">Chords 的"流动"本体是 progression 与 voice leading</div>
+      </div>
+      <div class="sp-cell">
+        <div class="sp-lbl">Intervals</div>
+        <div class="sp-val">Space 强 · Flow 强</div>
+        <div class="sp-note">原生 trainer，两者都在 L1 主位</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrongbox">
+    <div class="wt">已否定：统一 L1 模板（所有 trainer 都是上排专属两格 + 下排 Space/Flow）</div>
+    <div class="li">Notes 不该给 Flow 主位</div>
+    <div class="li">Scales 必须给 System 主位，而非把 System 塞进 L2</div>
+    <div class="li">Chords 必须给 Mode 主位，Flow 不进主层</div>
+    <div class="li">不要直接迁 intervals/ 目录到 shared/trainer/，用 wrapper/adapter/copy-with-contract</div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-hd"><span class="lbadge lbno">推进顺序</span></div>
+    <div class="modelist">
+      <div class="moderow"><div class="modeidx" style="color:var(--color-text-success)">1</div><div class="modebody"><div class="modename">先做 Scales</div><div class="modesub">有逻辑底子 · 最能验证 Space/Flow 成为训练逻辑而非装饰 · 做完后其他两个的分层更容易收束</div></div></div>
+      <div class="moderow"><div class="modeidx" style="color:var(--color-text-warning)">2</div><div class="modebody"><div class="modename">再做 Notes</div><div class="modesub">逻辑最好定义但容易做得太轻 · 必须先补 Target Type 维度再动 UI</div></div></div>
+      <div class="moderow"><div class="modeidx" style="color:var(--color-text-danger)">3</div><div class="modebody"><div class="modename">最后做 Chords</div><div class="modesub">价值最大但模式边界最复杂 · 等前两个跑通后再做</div></div></div>
+    </div>
+  </div>
+
+</div>
+
+<div id="pane-notes" class="pane">
+
+  <div class="mission"><strong>重新定义：Fretboard Literacy Trainer</strong><br>在不同音乐约束下，快速、稳定、无形状依赖地定位指板上的音高信息。不只是找字母 — 从 Note 到 Degree 到 Chord Tone 到 Context。</div>
+
+  <div class="sec">
+    <div class="sec-hd"><span class="lbadge lbno">模式树 · 第一阶段锁 4 个</span></div>
+    <div class="modelist">
+      <div class="moderow"><div class="modeidx">A</div><div class="modebody"><div class="modename">Note — 找音名</div><div class="modesub">最基础。给音名，在指定区域内找出来。保留当前核心逻辑，是其他模式的地基。</div></div></div>
+      <div class="moderow"><div class="modeidx">B</div><div class="modebody"><div class="modename">Degree — 找功能位</div><div class="modesub">给 root + degree（b3、5、b7、9…），在区域内定位。Notes 与 Intervals/Scales 的桥梁。这是当前代码完全缺失的层。</div></div></div>
+      <div class="moderow"><div class="modeidx">C</div><div class="modebody"><div class="modename">Chord Tone — 找和弦音</div><div class="modesub">给和弦名，找 1/3/5/7/guide tones/tension。Notes 与 Chords 的桥梁。铺未来和弦训练的地基。</div></div></div>
+      <div class="moderow"><div class="modeidx">D</div><div class="modebody"><div class="modename">Pressure — 反应训练</div><div class="modesub">限时、连击、节奏触发、错误惩罚。把"认识"变成"反应"。</div></div></div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="sec">
+    <div class="sec-hd"><span class="lbadge lb0">L0</span><span class="sec-title">主屏组件</span></div>
+    <div class="grid3">
+      <div class="card reuse"><span class="cbadge cb-re">reuse</span><div class="cn">TopUtilityRail</div><div class="cs">mic, rms, theme, settings</div></div>
+      <div class="card new"><span class="cbadge cb-new">upgrade</span><div class="cn">NotesFocusCard</div><div class="cs">大字目标音 · answerState feedback · enharmonic hint · score/streak · Mode B时显示 degree+root dual · Mode C时显示 chord name</div></div>
+      <div class="card reuse"><span class="cbadge cb-re">reuse</span><div class="cn">FretboardStageCard</div><div class="cs">tap fret = answer attempt · 正确后高亮 / 全位置 flash</div></div>
+    </div>
+    <div style="margin-top:8px" class="grid3">
+      <div class="card new"><span class="cbadge cb-new">new</span><div class="cn">ModeCapsules</div><div class="cs">Note / Degree / Chord Tone / Pressure 四颗胶囊</div></div>
+      <div class="card new"><span class="cbadge cb-new">new</span><div class="cn">BottomQuickStatusBar</div><div class="cs">Target type label · Space label · Challenge label</div></div>
+      <div class="card reuse"><span class="cbadge cb-re">reuse</span><div class="cn">PositionStripPro</div><div class="cs">目标 fret zone 指示</div></div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-hd"><span class="lbadge lb1">L1</span><span class="sec-title">PracticeControlSheet — Notes 专属布局</span></div>
+    <div class="l1box">
+      <div class="l1row" style="grid-template-columns:1fr 1fr;height:78px">
+        <div class="l1cell core">
+          <div class="l1lbl">Target Type</div>
+          <div class="l1val">Note</div>
+          <div class="l1sub">tap → cycle: Note · Degree · Chord Tone · Pressure</div>
+        </div>
+        <div class="l1cell core">
+          <div class="l1lbl">Display</div>
+          <div class="l1val">Show on correct</div>
+          <div class="l1sub">tap → All / On Correct / Hide · long → L2</div>
+        </div>
+      </div>
+      <div class="l1row" style="grid-template-columns:1fr 1fr;height:68px">
+        <div class="l1cell shared">
+          <div class="l1lbl">Space</div>
+          <div class="l1val">Pos 1–5</div>
+          <div class="l1sub">tap cycle · long → L2</div>
+        </div>
+        <div class="l1cell core">
+          <div class="l1lbl">Challenge</div>
+          <div class="l1val">Free</div>
+          <div class="l1sub">tap → Free · Timed · Streak · long → L2</div>
+        </div>
+      </div>
+    </div>
+    <div class="note warn">Flow 不进 Notes 的 L1 主位。右下是 Challenge（限时/连击/压力），不是 Flow。Notes 没有 root→target 路径性，Flow 只能以"出题顺序偏向"存在，藏在 DisplayEditor 的次级选项里即可。</div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-hd"><span class="lbadge lb2">L2</span><span class="sec-title">深度编辑器</span></div>
+    <div class="grid2">
+      <div class="card reuse"><span class="cbadge cb-re">复用设计语法</span><div class="cn">SpaceEditorL2</div><div class="cs">区域网格选择 · 弦组选择 · 自定义 box · preset。延续 Intervals 的网格拖选交互，但不直接迁目录。</div></div>
+      <div class="card new"><span class="cbadge cb-new">new</span><div class="cn">DisplayEditorL2</div><div class="cs">note name / degree / chord tone label 显示策略 · 正确后显示全部/只目标/隐藏 · 目标高亮与非目标透明度 · 出题顺序偏向（Flow 轻量入口在此）</div></div>
+    </div>
+    <div style="margin-top:8px" class="grid2">
+      <div class="card new"><span class="cbadge cb-new">new</span><div class="cn">ChallengeEditorL2</div><div class="cs">限时秒数 · 连击目标 · 失误惩罚 · 压力节奏频率</div></div>
+      <div class="card new"><span class="cbadge cb-new">new</span><div class="cn">TargetTypeEditorL2</div><div class="cs">Degree 模式：允许哪些 degree · Chord Tone 模式：triad/7th/guide tone · Note 模式：升降号策略</div></div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-hd"><span class="lbadge lb3">L3</span><span class="sec-title">深度系统层</span></div>
+    <div class="grid3">
+      <div class="card new"><span class="cbadge cb-new">new</span><div class="cn">Curriculum / Context L3</div><div class="cs">当前训练能力说明 · Note→Degree→Chord Tone 关系图 · 推荐学习路径</div></div>
+      <div class="card new"><span class="cbadge cb-new">new</span><div class="cn">Custom Drill Builder</div><div class="cs">自定义目标音池 · degree 集合 · chord-tone 集合 · 节奏/计时训练</div></div>
+      <div class="card new"><span class="cbadge cb-new">new</span><div class="cn">Weakness Insights</div><div class="cs">弱点音位热力图 · 弦组薄弱分析 · 反应时间分布。现有代码 weakNotes / noteHeatmapGrid 天然支撑。</div></div>
+    </div>
+  </div>
+
+  <div class="wrongbox">
+    <div class="wt">Notes 里不做的东西</div>
+    <div class="li">完整 Flow 主卡</div>
+    <div class="li">复杂 sequence logic（那是 Scales 的）</div>
+    <div class="li">太多视觉样式控制</div>
+    <div class="li">把 Notes 做成路径训练器（那会和 Intervals 边界模糊）</div>
+  </div>
+
+</div>
+
+<div id="pane-scales" class="pane">
+
+  <div class="mission"><strong>重新定义：Scale Systems Trainer</strong><br>训练"你如何在不同系统里组织、连接、理解并应用音阶"的能力。不是背几个盒子 — 是 CAGED / 3NPS / Horizontal / Phrase Cells 等系统思维的真正训练。</div>
+
+  <div class="sec">
+    <div class="sec-hd"><span class="lbadge lbno">模式树 · 第一阶段锁 5 个</span></div>
+    <div class="modelist">
+      <div class="moderow"><div class="modeidx">A</div><div class="modebody"><div class="modename">Pattern — 单系统单形态</div><div class="modesub">选系统、选音阶、选位置，练最基本的落点。当前代码 seqMode ascending/descending/random 是这里最原始的雏形。</div></div></div>
+      <div class="moderow"><div class="modeidx">B</div><div class="modebody"><div class="modename">System — 系统比较与切换</div><div class="modesub">同一音阶在 CAGED / 3NPS / Horizontal / Hybrid 中的不同组织方式。这是你新增 3NPS/CAGED/JTC 系统的核心入口 — 必须进 L1 主位。</div></div></div>
+      <div class="moderow"><div class="modeidx">C</div><div class="modebody"><div class="modename">Sequence — 运行逻辑与 pattern cell</div><div class="modesub">3-note、4-note、skip、thirds、1235、1234 等。当前 seqMode 只是雏形，这里要做真正的 sequence logic。</div></div></div>
+      <div class="moderow"><div class="modeidx">D</div><div class="modebody"><div class="modename">Connection — 位置连接与跨把位</div><div class="modesub">相邻 shape 连接、区域连接、跨把位移动。CAGED 相邻 shape / 3NPS 跨弦跳进等。</div></div></div>
+      <div class="moderow"><div class="modeidx">E</div><div class="modebody"><div class="modename">Target Tone — 功能音定位</div><div class="modesub">在 scale 内找 3rd / 7th / guide tones / tensions / avoid notes。和 Chords 接轨的关键桥梁模式。</div></div></div>
+    </div>
+    <div class="note">Mode F (Chord-Scale) 暂缓，等前 5 个成熟后再加。</div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-hd"><span class="lbadge lbno">系统层定义（你要新增的核心）</span></div>
+    <div class="grid2">
+      <div class="card new"><span class="cbadge cb-new">System A</span><div class="cn">CAGED</div><div class="cs">五个位置 · 相邻位置连接 · 和弦锚点 · 位置认知 · chord-scale 关系</div></div>
+      <div class="card new"><span class="cbadge cb-new">System B</span><div class="cn">3NPS (3 Notes Per String)</div><div class="cs">三音每弦 · 横向对称 · 流动性 · 快速 sequence · 跨把位移动</div></div>
+    </div>
+    <div style="margin-top:8px" class="grid2">
+      <div class="card new"><span class="cbadge cb-new">System C</span><div class="cn">Horizontal</div><div class="cs">单弦/双弦/横向路线 · 解决"只会在 box 里想"的问题 · 培养线条感而非格子记忆</div></div>
+      <div class="card new"><span class="cbadge cb-new">System D</span><div class="cn">Phrase Cells / Hybrid</div><div class="cs">interval cells · sequence fragments · pattern chunks · 吸收 JTC/Tom Quayle 式思维，但产品内用中性系统名</div></div>
+    </div>
+    <div class="note warn">产品内部不要直接标注"JTC 模式"，用系统中性名称。Phrase Cells / Hybrid 可以第二阶段再加，先把 CAGED + 3NPS + Horizontal 做扎实。</div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="sec">
+    <div class="sec-hd"><span class="lbadge lb0">L0</span><span class="sec-title">主屏组件</span></div>
+    <div class="grid3">
+      <div class="card reuse"><span class="cbadge cb-re">reuse</span><div class="cn">TopUtilityRail</div><div class="cs">mic, rms, theme, settings</div></div>
+      <div class="card new"><span class="cbadge cb-up">upgrade</span><div class="cn">ScalesFocusCard</div><div class="cs">degree + root 双行显示 · degree progress dots · seq mode pill · system badge · answerState feedback · breathing animation · T.glass v8 tokens</div></div>
+      <div class="card new"><span class="cbadge cb-new">new</span><div class="cn">BlueprintRail</div><div class="cs">常驻轻量 pill 条 (FocusCard 下方)。formula pills · altered degrees accent 高亮 · 首调/固定调快切。不抢主舞台 — 是信息轨，不是主卡。</div></div>
+    </div>
+    <div style="margin-top:8px" class="grid3">
+      <div class="card reuse"><span class="cbadge cb-re">reuse</span><div class="cn">FretboardStageCard</div><div class="cs">所有 scale degree 位置高亮 · 系统 shape 轮廓 overlay</div></div>
+      <div class="card new"><span class="cbadge cb-new">new</span><div class="cn">BottomQuickStatusBar</div><div class="cs">Scale name · System label · Seq mode · Space label</div></div>
+      <div class="card reuse"><span class="cbadge cb-re">reuse</span><div class="cn">PositionStripPro</div><div class="cs">目标 fret zone 指示</div></div>
+    </div>
+    <div class="note warn">BlueprintRail 从 ScaleBlueprintBar 升级而来，但必须是轻量常驻信息轨，不能变成又一个主卡或抢走 FocusCard 的主舞台。深度编辑进 L2 Blueprint。</div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-hd"><span class="lbadge lb1">L1</span><span class="sec-title">PracticeControlSheet — Scales 专属布局</span></div>
+    <div class="l1box">
+      <div class="l1row" style="grid-template-columns:3fr 2fr;height:82px">
+        <div class="l1cell core">
+          <div class="l1lbl">Scale</div>
+          <div class="l1val">Dorian</div>
+          <div class="l1sub">tap → 按分类循环 · long → L2 完整音阶 picker</div>
+        </div>
+        <div class="l1cell core">
+          <div class="l1lbl">System</div>
+          <div class="l1val">CAGED</div>
+          <div class="l1sub">tap → CAGED · 3NPS · Horizontal · long → L2</div>
+        </div>
+      </div>
+      <div class="l1row" style="grid-template-columns:1fr 1fr;height:70px">
+        <div class="l1cell core">
+          <div class="l1lbl">Sequence</div>
+          <div class="l1val">Ascending ↑</div>
+          <div class="l1sub">tap → ↑ ↓ random · long → L2 完整 sequence 编辑器</div>
+        </div>
+        <div class="l1cell shared">
+          <div class="l1lbl">Space + Flow</div>
+          <div class="l1val">Pos 1–5 · Low→High</div>
+          <div class="l1sub">双轴合并卡 · long → L2 SpaceFlow 编辑器</div>
+        </div>
+      </div>
+    </div>
+    <div class="note">Scales 是唯一一个 Space + Flow 都在 L1 主位的 trainer — 但合并为一张双轴卡，不占两格。因为一旦引入 CAGED/3NPS，Space 是"当前系统位置区域"，Flow 是"系统内移动逻辑"，二者都是训练引擎参数，不是装饰设置。</div>
+    <div class="note warn">System 必须在 L1 — 如果只进 L2，CAGED/3NPS/JTC 系统永远只是口头规划，没有真正入口。</div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-hd"><span class="lbadge lb2">L2</span><span class="sec-title">深度编辑器</span></div>
+    <div class="grid2">
+      <div class="card new"><span class="cbadge cb-new">new</span><div class="cn">ScalePickerL2 / Blueprint</div><div class="cs">分类 tabs · formula pills · fromMajor 差异音 · degree labels · 首调/固定调切换 · parent key 显示</div></div>
+      <div class="card new"><span class="cbadge cb-new">new · 核心新增</span><div class="cn">SystemEditorL2</div><div class="cs">选 CAGED / 3NPS / Horizontal · 系统内子位置 · 相邻连接策略 · shape 预览</div></div>
+    </div>
+    <div style="margin-top:8px" class="grid2">
+      <div class="card new"><span class="cbadge cb-up">upgrade</span><div class="cn">SequenceEditorL2</div><div class="cs">升级旧 InfoIcon 系统。Seq mode + Root Movement + Entry Point，带长按说明。sequence preset · entry logic · run direction · note grouping。</div></div>
+      <div class="card new"><span class="cbadge cb-new">new</span><div class="cn">SpaceFlowEditorL2</div><div class="cs">position box · string-set route · horizontal span · string crossing bias。Scales 版语义重写，不照搬 Intervals。</div></div>
+    </div>
+    <div style="margin-top:8px" class="grid2">
+      <div class="card new"><span class="cbadge cb-new">new</span><div class="cn">TargetToneEditorL2</div><div class="cs">选 target class：3rd / 7th / guide / tension · chord context 选择 · 强调音显示方式</div></div>
+      <div class="card" style="opacity:.4"><div class="cn">—</div><div class="cs">预留第二阶段：Chord-Scale Editor</div></div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-hd"><span class="lbadge lb3">L3</span><span class="sec-title">深度系统层</span></div>
+    <div class="grid3">
+      <div class="card new"><span class="cbadge cb-new">upgrade</span><div class="cn">ScaleBlueprintL3</div><div class="cs">与大调差异音 · mode family · chord compatibility · context/style hint · 系统内 recommended use · 从现有 SCALE_META 数据驱动</div></div>
+      <div class="card new"><span class="cbadge cb-new">new · 关键</span><div class="cn">System Tutor L3</div><div class="cs">CAGED 是什么 · 3NPS 为什么成立 · Horizontal 为什么重要 · 它们和 target-tone thinking 的关系 · 可视化系统图解</div></div>
+      <div class="card new"><span class="cbadge cb-new">new</span><div class="cn">Custom Sequence Builder</div><div class="cs">自定义 1235 / 1345 / skips / interval cells · 自定义 pattern fragments · 保存 preset</div></div>
+    </div>
+  </div>
+
+  <div class="wrongbox">
+    <div class="wt">Scales 里不做的东西</div>
+    <div class="li">一口气实现所有系统 — 先做 CAGED + 3NPS + Horizontal，Phrase Cells 第二阶段</div>
+    <div class="li">让 Blueprint 抢走主训练舞台 — 它只是常驻信息轨</div>
+    <div class="li">Flow 做得比 System 更重要</div>
+    <div class="li">把 Sequence 卡吞掉太多概念 — rootMovement + entryPoint 讲清楚要在 L2 里</div>
+  </div>
+
+</div>
+
+<div id="pane-chords" class="pane">
+
+  <div class="mission"><strong>重新定义：Chords Trainer（原 Changes）</strong><br>训练"你如何识别、定位、连接并在和声进行中使用和弦"的能力。不只是看下一和弦叫什么 — 是和弦系统、和声功能、连接逻辑与伴奏导航的完整训练器。</div>
+
+  <div class="sec">
+    <div class="sec-hd"><span class="lbadge lbno">模式树 · 第一阶段锁 5 个</span></div>
+    <div class="modelist">
+      <div class="moderow"><div class="modeidx">A</div><div class="modebody"><div class="modename">Find Chord — 和弦定位</div><div class="modesub">给和弦名，在指定区域内找可用 voicing 或 chord map。训练和弦的空间认知。</div></div></div>
+      <div class="moderow"><div class="modeidx">B</div><div class="modebody"><div class="modename">Chord Tone — 和弦音定位</div><div class="modesub">给和弦名，找 1/3/5/7/guide tones/tension。现有 chord tone detection 逻辑的升级承载点。</div></div></div>
+      <div class="moderow"><div class="modeidx">C</div><div class="modebody"><div class="modename">Connect — 和弦连接</div><div class="modesub">给当前+下一和弦，训练最短连接、guide tone line、common tones。现有 computeVoiceLead 的升级承载点。</div></div></div>
+      <div class="moderow"><div class="modeidx">D</div><div class="modebody"><div class="modename">Progression — 进行导航</div><div class="modesub">沿进行走，处理当前与下一个目标。这是保留现有 Changes 最重要的资产 — progression/difficulty/order/voice-leading 的完整继承。</div></div></div>
+      <div class="moderow"><div class="modeidx">E</div><div class="modebody"><div class="modename">Function — 功能感知</div><div class="modesub">识别 tonic / predominant / dominant / borrowed / altered 的功能感。不只认形状，而是识别调内角色。</div></div></div>
+    </div>
+    <div class="note">Mode F (Voicing Drill — triads/shells/7th/drop2) 暂缓，等前 5 个成熟后再加。</div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="sec">
+    <div class="sec-hd"><span class="lbadge lb0">L0</span><span class="sec-title">主屏组件</span></div>
+    <div style="background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:10px;padding:13px;margin-bottom:10px">
+      <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:stretch">
+        <div style="background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:8px;padding:11px">
+          <div style="font-size:9px;color:var(--color-text-tertiary);letter-spacing:.1em;text-transform:uppercase;margin-bottom:3px">Now</div>
+          <div style="font-size:22px;font-weight:500;color:var(--color-text-primary)">Dm7</div>
+          <div style="margin-top:6px;padding:6px 8px;border-radius:6px;background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary)">
+            <div style="font-size:9px;color:var(--color-text-tertiary);text-transform:uppercase;letter-spacing:.06em">Find</div>
+            <div style="font-size:18px;font-weight:500;color:var(--color-text-primary)">C</div>
+            <div style="font-size:11px;color:var(--color-text-secondary)">b7 — minor seventh</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;color:var(--color-text-tertiary);font-size:16px">→</div>
+        <div style="background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:8px;padding:11px;opacity:.6">
+          <div style="font-size:9px;color:var(--color-text-tertiary);letter-spacing:.1em;text-transform:uppercase;margin-bottom:3px">Next</div>
+          <div style="font-size:22px;font-weight:500;color:var(--color-text-primary)">G7</div>
+          <div style="margin-top:6px;padding:6px 8px;border-radius:6px;background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary)">
+            <div style="font-size:9px;color:var(--color-text-tertiary);text-transform:uppercase;letter-spacing:.06em">Preview</div>
+            <div style="font-size:18px;font-weight:500;color:var(--color-text-primary)">B</div>
+            <div style="font-size:11px;color:var(--color-text-secondary)">3 — major third</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="grid3">
+      <div class="card reuse"><span class="cbadge cb-re">reuse</span><div class="cn">TopUtilityRail</div><div class="cs">mic, rms, theme, settings</div></div>
+      <div class="card new"><span class="cbadge cb-up">upgrade</span><div class="cn">ChangesFocusCard</div><div class="cs">Now/Next 双卡 · T.glass v8 tokens 替换硬编码颜色 · breathing animation · voice lead arrow 动画优化 · answerState feedback</div></div>
+      <div class="card new"><span class="cbadge cb-up">upgrade</span><div class="cn">MiniProgressionStrip</div><div class="cs">升级为 glass tokens · ±3 window · long press → L2 full view · tap 展开完整进行</div></div>
+    </div>
+    <div style="margin-top:8px" class="grid3">
+      <div class="card reuse"><span class="cbadge cb-re">reuse</span><div class="cn">FretboardStageCard</div><div class="cs">root + target chord tones · guide tone highlight</div></div>
+      <div class="card new"><span class="cbadge cb-new">new</span><div class="cn">ModeCapsules</div><div class="cs">Find / Tone / Connect / Progression / Function 五颗模式选择胶囊</div></div>
+      <div class="card new"><span class="cbadge cb-new">new</span><div class="cn">BottomQuickStatusBar</div><div class="cs">Mode label · Prog name · Difficulty label</div></div>
+    </div>
+    <div class="note warn">Chords 的 L0 不用 PositionStripPro — 和弦训练的主焦点不在单一 fret position，而在 Now/Next 双卡与进行条。</div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-hd"><span class="lbadge lb1">L1</span><span class="sec-title">PracticeControlSheet — Chords 专属布局</span></div>
+    <div class="l1box">
+      <div class="l1row" style="grid-template-columns:2fr 3fr;height:82px">
+        <div class="l1cell core">
+          <div class="l1lbl">Mode</div>
+          <div class="l1val">Progression</div>
+          <div class="l1sub">tap → cycle 5 modes · long → L2 mode detail</div>
+        </div>
+        <div class="l1cell core">
+          <div class="l1lbl">Progression / Content</div>
+          <div class="l1val">ii-V-I in C</div>
+          <div class="l1sub">tap → 按分类循环 · long → L2 完整 picker。随 Mode 变：Prog/Function context/Chord family</div>
+        </div>
+      </div>
+      <div class="l1row" style="grid-template-columns:1fr 1fr;height:68px">
+        <div class="l1cell core">
+          <div class="l1lbl">Difficulty / Voicing</div>
+          <div class="l1val">7th (3+5+b7)</div>
+          <div class="l1sub">tap → triad · shell · 7th · guide tone · long → L2</div>
+        </div>
+        <div class="l1cell core">
+          <div class="l1lbl">Key / Order</div>
+          <div class="l1val">C · Forward</div>
+          <div class="l1sub">tap → key / randomizeKey / orderMode · long → L2</div>
+        </div>
+      </div>
+    </div>
+    <div class="note deny">Space 不进 Chords 的 L1 主位 — 进 L2。Flow 完全暂缓 — 不在这一轮做。Chords 的"流动"本体是 progression 顺序与 voice leading，不能再叠一个弦方向的 Flow 混淆认知。</div>
+    <div class="note">原有 ChangesTrainer 的所有核心逻辑完整保留：progression / difficulty / orderMode / randomizeKey / transposeOff / computeVoiceLead / chord tone detection — 重新编入各模式，不能被 UI 重构冲掉。</div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-hd"><span class="lbadge lb2">L2</span><span class="sec-title">深度编辑器</span></div>
+    <div class="grid2">
+      <div class="card new"><span class="cbadge cb-up">upgrade</span><div class="cn">ProgressionPickerL2</div><div class="cs">升级现有 BottomSheet。分类 tabs + full list + Transpose 控件 + Order 选项 + Loop region。你总纲的 Song Mode/Section loop 方向在这里扎根。</div></div>
+      <div class="card new"><span class="cbadge cb-new">new</span><div class="cn">DifficultyEditorL2</div><div class="cs">所有难度等级 + 每级说明 + Key Randomize toggle + Order mode (forward/reverse/random) + Voicing family 选择</div></div>
+    </div>
+    <div style="margin-top:8px" class="grid2">
+      <div class="card new"><span class="cbadge cb-new">new</span><div class="cn">ConnectEditorL2</div><div class="cs">最近 root 提示 · guide tone priority · minimal movement / common tones 策略 · next-target preview 控制。总纲已有"最近 Root 高亮 + Voice Leading 提示"规范。</div></div>
+      <div class="card new"><span class="cbadge cb-new">new</span><div class="cn">SpaceEditorL2（弱化版）</div><div class="cs">fret region · string set · voicing window。只做辅助约束，不是主控制。</div></div>
+    </div>
+    <div style="margin-top:8px">
+      <div class="card new"><span class="cbadge cb-new">new</span><div class="cn">FunctionEditorL2</div><div class="cs">tonal center · borrowed/altered awareness · role filtering (tonic/predominant/dominant) · functional context</div></div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-hd"><span class="lbadge lb3">L3</span><span class="sec-title">深度系统层</span></div>
+    <div class="grid3">
+      <div class="card new"><span class="cbadge cb-up">upgrade</span><div class="cn">Progression Blueprint L3</div><div class="cs">升级现有 FullProgSheet。完整和弦进行图 · section 结构 · 调性说明 · 当前模式下练习重点</div></div>
+      <div class="card new"><span class="cbadge cb-new">new</span><div class="cn">Voice-Leading Tutor L3</div><div class="cs">为什么这条路径最近 · guide tones 如何走 · common tones 为什么保留 · 视觉路径解释。总纲已有明确规范。</div></div>
+      <div class="card new"><span class="cbadge cb-new">new</span><div class="cn">Custom Chord Drill Builder</div><div class="cs">自定义 progression · 自定义 chord families · 自定义 chord-tone targets · 自定义 loop rules</div></div>
+    </div>
+  </div>
+
+  <div class="wrongbox">
+    <div class="wt">Chords 里不做的东西</div>
+    <div class="li">完整 Flow 主卡进 L1（这一轮完全不做）</div>
+    <div class="li">Space 进 L1 主位（只在 L2 作辅助）</div>
+    <div class="li">把它做成 Intervals 的翻版 — 它是独立的和声训练器</div>
+    <div class="li">让 UI 统一模板压过 progression / voice leading 的主轴地位</div>
+  </div>
+
+</div>
+
+<div id="pane-shared" class="pane">
+
+  <div class="sec">
+    <div class="sec-hd"><span class="lbadge lbsh">文件结构</span><span class="sec-title">建议目录布局</span></div>
+    <div style="background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:10px;padding:14px 16px">
+      <div style="font-family:var(--font-mono);font-size:12px;color:var(--color-text-secondary);line-height:1.9">
+        <div style="color:var(--color-text-tertiary)">src/components/</div>
+        <div style="padding-left:16px">intervals/ <span style="color:var(--color-text-tertiary);font-size:11px">← 已完成，不动</span></div>
+        <div style="padding-left:32px;color:var(--color-text-tertiary)">l0/ l1/ l2/ l3/ platform/</div>
+        <div style="padding-left:16px;margin-top:4px">scales/ <span style="color:var(--color-text-success);font-size:11px">← 第一个做</span></div>
+        <div style="padding-left:32px;color:var(--color-text-tertiary)">l0/ l1/ l2/ l3/ constants.js</div>
+        <div style="padding-left:16px">notes/</div>
+        <div style="padding-left:32px;color:var(--color-text-tertiary)">l0/ l1/ l2/ l3/ constants.js</div>
+        <div style="padding-left:16px">chords/ <span style="color:var(--color-text-tertiary);font-size:11px">← 原 changes/</span></div>
+        <div style="padding-left:32px;color:var(--color-text-tertiary)">l0/ l1/ l2/ l3/ constants.js</div>
+      </div>
+    </div>
+    <div class="note warn">不要直接迁 intervals/ 目录到 shared/trainer/。现在更安全的是 wrapper/adapter/copy-with-contract。组件设计语法可以学习 Intervals，但文件目录独立。</div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-hd"><span class="lbadge lbsh">可共享的设计语法（不是文件）</span></div>
+    <div class="grid2">
+      <div class="card reuse"><span class="cbadge cb-re">设计语法共享</span><div class="cn">SpaceEditor 交互语法</div><div class="cs">区域网格拖选 · preset cycle 方式 · L2 push-screen 容器。但 Scales 版 Space 语义要重写（"系统位置"而非只是 fret range）。</div></div>
+      <div class="card reuse"><span class="cbadge cb-re">设计语法共享</span><div class="cn">L2Shell / L3EditorShell</div><div class="cs">L2 的 push-screen 容器和 L3 的全屏 editor 容器。可以用同一套壳，但内容各自独立。</div></div>
+    </div>
+    <div style="margin-top:8px" class="grid2">
+      <div class="card reuse"><span class="cbadge cb-re">直接复用</span><div class="cn">TopUtilityRail</div><div class="cs">mic, rms, theme toggle, settings。所有 trainer 完全共用，不用改。</div></div>
+      <div class="card reuse"><span class="cbadge cb-re">直接复用</span><div class="cn">FretboardStageCard + FretboardViewport</div><div class="cs">核心指板渲染层所有 trainer 共用，只是 highlights props 不同。</div></div>
+    </div>
+    <div style="margin-top:8px" class="grid2">
+      <div class="card reuse"><span class="cbadge cb-re">直接复用</span><div class="cn">PositionStripPro</div><div class="cs">Notes + Scales + Intervals 共用。Chords 不用（见 L0 说明）。</div></div>
+      <div class="card reuse"><span class="cbadge cb-re">直接复用</span><div class="cn">T.glass tokens · SPRINGS_IV · HEIGHT tokens</div><div class="cs">所有新组件统一用 v8 glass token 体系，不再写硬编码颜色。</div></div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="sec">
+    <div class="sec-hd"><span class="lbadge lbsh">L1 结构对比（正确版）</span></div>
+    <div class="grid2">
+      <div style="border:0.5px solid var(--color-border-tertiary);border-radius:10px;overflow:hidden">
+        <div style="padding:8px 12px;border-bottom:0.5px solid var(--color-border-tertiary);background:var(--color-background-secondary);font-size:11px;font-weight:500;color:var(--color-text-tertiary)">Notes L1</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:0.5px solid var(--color-border-tertiary)">
+          <div style="padding:8px 10px;border-right:0.5px solid var(--color-border-tertiary);font-size:12px;background:rgba(59,130,246,.04)"><div style="font-size:10px;color:var(--color-text-tertiary)">左上</div>Target Type</div>
+          <div style="padding:8px 10px;font-size:12px;background:rgba(59,130,246,.04)"><div style="font-size:10px;color:var(--color-text-tertiary)">右上</div>Display</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr">
+          <div style="padding:8px 10px;border-right:0.5px solid var(--color-border-tertiary);font-size:12px;background:rgba(34,197,94,.04)"><div style="font-size:10px;color:var(--color-text-tertiary)">左下</div>Space</div>
+          <div style="padding:8px 10px;font-size:12px;background:rgba(59,130,246,.04)"><div style="font-size:10px;color:var(--color-text-tertiary)">右下</div>Challenge ← 不是 Flow</div>
+        </div>
+      </div>
+      <div style="border:0.5px solid var(--color-border-tertiary);border-radius:10px;overflow:hidden">
+        <div style="padding:8px 12px;border-bottom:0.5px solid var(--color-border-tertiary);background:var(--color-background-secondary);font-size:11px;font-weight:500;color:var(--color-text-tertiary)">Scales L1</div>
+        <div style="display:grid;grid-template-columns:3fr 2fr;border-bottom:0.5px solid var(--color-border-tertiary)">
+          <div style="padding:8px 10px;border-right:0.5px solid var(--color-border-tertiary);font-size:12px;background:rgba(59,130,246,.04)"><div style="font-size:10px;color:var(--color-text-tertiary)">左上</div>Scale</div>
+          <div style="padding:8px 10px;font-size:12px;background:rgba(59,130,246,.04)"><div style="font-size:10px;color:var(--color-text-tertiary)">右上 ← 必须主位</div>System</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr">
+          <div style="padding:8px 10px;border-right:0.5px solid var(--color-border-tertiary);font-size:12px;background:rgba(59,130,246,.04)"><div style="font-size:10px;color:var(--color-text-tertiary)">左下</div>Sequence</div>
+          <div style="padding:8px 10px;font-size:12px;background:rgba(34,197,94,.04)"><div style="font-size:10px;color:var(--color-text-tertiary)">右下 · 合并双轴</div>Space + Flow</div>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:8px" class="grid2">
+      <div style="border:0.5px solid var(--color-border-tertiary);border-radius:10px;overflow:hidden">
+        <div style="padding:8px 12px;border-bottom:0.5px solid var(--color-border-tertiary);background:var(--color-background-secondary);font-size:11px;font-weight:500;color:var(--color-text-tertiary)">Chords L1</div>
+        <div style="display:grid;grid-template-columns:2fr 3fr;border-bottom:0.5px solid var(--color-border-tertiary)">
+          <div style="padding:8px 10px;border-right:0.5px solid var(--color-border-tertiary);font-size:12px;background:rgba(59,130,246,.04)"><div style="font-size:10px;color:var(--color-text-tertiary)">左上 ← 必须主位</div>Mode</div>
+          <div style="padding:8px 10px;font-size:12px;background:rgba(59,130,246,.04)"><div style="font-size:10px;color:var(--color-text-tertiary)">右上</div>Progression / Content</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr">
+          <div style="padding:8px 10px;border-right:0.5px solid var(--color-border-tertiary);font-size:12px;background:rgba(59,130,246,.04)"><div style="font-size:10px;color:var(--color-text-tertiary)">左下</div>Difficulty / Voicing</div>
+          <div style="padding:8px 10px;font-size:12px;background:rgba(59,130,246,.04)"><div style="font-size:10px;color:var(--color-text-tertiary)">右下</div>Key / Order</div>
+        </div>
+      </div>
+      <div style="border:0.5px solid var(--color-border-tertiary);border-radius:10px;overflow:hidden">
+        <div style="padding:8px 12px;border-bottom:0.5px solid var(--color-border-tertiary);background:var(--color-background-secondary);font-size:11px;font-weight:500;color:var(--color-text-tertiary)">Intervals L1（参考，不动）</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:0.5px solid var(--color-border-tertiary)">
+          <div style="padding:8px 10px;border-right:0.5px solid var(--color-border-tertiary);font-size:12px;background:rgba(34,197,94,.04)"><div style="font-size:10px;color:var(--color-text-tertiary)">左上</div>Mode</div>
+          <div style="padding:8px 10px;font-size:12px;background:rgba(34,197,94,.04)"><div style="font-size:10px;color:var(--color-text-tertiary)">右上</div>Intervals</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr">
+          <div style="padding:8px 10px;border-right:0.5px solid var(--color-border-tertiary);font-size:12px;background:rgba(34,197,94,.04)"><div style="font-size:10px;color:var(--color-text-tertiary)">左下</div>Space</div>
+          <div style="padding:8px 10px;font-size:12px;background:rgba(34,197,94,.04)"><div style="font-size:10px;color:var(--color-text-tertiary)">右下</div>Flow</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="sec">
+    <div class="sec-hd"><span class="lbadge lbsh">三个 trainer 的 constants.js</span></div>
+    <div class="grid3">
+      <div class="card new"><div class="cn">scales/constants.js</div><div class="cs">SEQ_MODES · ROOT_MODES · ENTRY_INFO · SYSTEM_PRESETS (CAGED/3NPS/Horizontal) · SEQUENCE_PRESETS · SPACE_PRESETS_SCALES · FLOW_PRESETS_SCALES。从 ScalesTrainer 提取 + 新增系统层。</div></div>
+      <div class="card new"><div class="cn">notes/constants.js</div><div class="cs">TARGET_TYPES (Note/Degree/ChordTone/Pressure) · DISPLAY_MODES · CHALLENGE_MODES · DEGREE_SET_PRESETS · CHORD_TONE_SETS。全部新建。</div></div>
+      <div class="card new"><div class="cn">chords/constants.js</div><div class="cs">CHORDS_MODES (FindChord/ChordTone/Connect/Progression/Function) · VOICING_TYPES · ORDER_OPTIONS · DIFFICULTY_LEVELS。从 ChangesTrainer 提取 + 升级。</div></div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="sec">
+    <div class="sec-hd"><span class="lbadge lbsh">执行顺序 · 具体步骤</span></div>
+    <div class="modelist">
+      <div class="moderow"><div class="modeidx" style="color:var(--color-text-success)">S1</div><div class="modebody"><div class="modename">Scales — 建目录 + constants.js + 系统层定义</div><div class="modesub">先把 CAGED/3NPS/Horizontal 系统数据结构定好，再动 UI。ScalesTrainer.jsx → src/components/scales/ 目录重组。</div></div></div>
+      <div class="moderow"><div class="modeidx" style="color:var(--color-text-success)">S2</div><div class="modebody"><div class="modename">Scales L0 — ScalesFocusCard + BlueprintRail + BottomQuickStatusBar</div><div class="modesub">升级 FocusCard，加 degree progress dots + system badge。BlueprintRail 常驻轻量轨道。</div></div></div>
+      <div class="moderow"><div class="modeidx" style="color:var(--color-text-success)">S3</div><div class="modebody"><div class="modename">Scales L1 — PracticeControlSheet (Scale/System/Sequence/SpaceFlow)</div><div class="modesub">System 卡必须在 L1 主位。SpaceFlow 合并双轴卡。</div></div></div>
+      <div class="moderow"><div class="modeidx" style="color:var(--color-text-success)">S4</div><div class="modebody"><div class="modename">Scales L2 — SystemEditorL2 + SequenceEditorL2 + ScalePickerL2</div><div class="modesub">SystemEditor 是全新核心编辑器。SequenceEditor 升级旧 InfoIcon 体系。</div></div></div>
+      <div class="moderow"><div class="modeidx" style="color:var(--color-text-warning)">N1</div><div class="modebody"><div class="modename">Notes — 建目录 + constants.js + Target Type 模式定义</div><div class="modesub">先把四个 mode (Note/Degree/ChordTone/Pressure) 的数据结构定好。</div></div></div>
+      <div class="moderow"><div class="modeidx" style="color:var(--color-text-warning)">N2</div><div class="modebody"><div class="modename">Notes L0 + L1 — NotesFocusCard + ModeCapsules + PracticeControlSheet</div><div class="modesub">L1 右下是 Challenge，不是 Flow。</div></div></div>
+      <div class="moderow"><div class="modeidx" style="color:var(--color-text-danger)">C1</div><div class="modebody"><div class="modename">Chords — 正式改名 + 建目录 + 模式边界定义</div><div class="modesub">ChangesTrainer → ChordsTrainer。五个 mode 的边界先在 constants.js 里锁定，再动 UI。</div></div></div>
+      <div class="moderow"><div class="modeidx" style="color:var(--color-text-danger)">C2</div><div class="modebody"><div class="modename">Chords L0 + L1 — glass tokens 升级 + Mode 主位 L1</div><div class="modesub">现有 computeVoiceLead / chord tone detection 完整保留，只是归入新模式体系。</div></div></div>
+    </div>
+  </div>
+
+</div>
+
+</div>
+
+<script>
+function show(id){
+  document.querySelectorAll('.navbtn').forEach(b=>b.classList.remove('on'));
+  document.querySelectorAll('.pane').forEach(p=>p.classList.remove('on'));
+  event.currentTarget.classList.add('on');
+  document.getElementById('pane-'+id).classList.add('on');
+}
+</script>

@@ -1,6 +1,9 @@
-// trainers/IntervalsTrainer.jsx — v9
-// Fix: 去掉根 div overflow:hidden → 改用 overscrollBehavior:none
-//      防止滚动的同时不裁剪 BottomQuickStatusBar
+// trainers/IntervalsTrainer.jsx — v13
+//
+// v13 변경:
+//   onOverlayChange(bool) prop 추가
+//   anyOverlayOpen 변경 시 App에 알려서 TabBar 숨김/표시 처리
+//   TabBar cover div 제거 (App 레벨에서 처리)
 
 import React, {
   useState, useEffect, useCallback, useContext, useRef,
@@ -11,7 +14,7 @@ import { INTERVAL_LABELS } from '../constants';
 import { freqToMidi, haptic } from '../musicUtils';
 import { useAudioEngine } from '../hooks/useAudioEngine';
 import { useIntervalQuestion } from '../hooks/useIntervalQuestion';
-import { SPACE_PRESETS } from './intervals/constants';
+import { SPACE_PRESETS, THEMES } from './intervals/constants';
 
 import { TopUtilityRail }      from '../components/intervals/l0/TopUtilityRail';
 import { FindModeCapsules }     from '../components/intervals/l0/FindModeCapsules';
@@ -26,12 +29,13 @@ import { IntervalsEditorL2 }    from '../components/intervals/l2/IntervalsEditor
 import { SpaceEditorL3 }        from '../components/intervals/l3/SpaceEditorL3';
 import { FlowEditorL3 }         from '../components/intervals/l3/FlowEditorL3';
 import { IntervalsEditorL3 }    from '../components/intervals/l3/IntervalsEditorL3';
+import { ThemePickerSheet }     from '../components/ThemePickerSheet';
 
 const OPEN_MIDI        = [40, 45, 50, 55, 59, 64];
 const CORRECT_COOLDOWN = 1000;
 const ALL_INTERVALS    = INTERVAL_LABELS.filter(l => l !== 'R');
 
-function computeViewport(rootFret, targetFret, total = 12, width = 5) {
+function computeViewport(rootFret, targetFret, total = 12, width = 6) {
   const lo   = Math.min(rootFret, targetFret);
   const hi   = Math.max(rootFret, targetFret);
   const w    = Math.max(width, hi - lo + 1);
@@ -43,7 +47,7 @@ function computeViewport(rootFret, targetFret, total = 12, width = 5) {
 const spaceLabel = id => ({ full:'Full', pos1:'1–5', pos5:'5–9', ead:'EAD', custom:'Custom' })[id] ?? 'Full';
 const flowLabel  = id => ({ free:'Free', 'low-high':'↑', 'high-low':'↓', custom:'···' })[id] ?? 'Free';
 
-export function IntervalTrainer({ settings, onSettings }) {
+export function IntervalTrainer({ settings, onSettings, onOverlayChange }) {
   const themeCtx = useContext(ThemeContext);
   const isDark   = themeCtx?.dark ?? true;
 
@@ -52,7 +56,7 @@ export function IntervalTrainer({ settings, onSettings }) {
   const [answerState,       setAnswerState]      = useState('idle');
   const [micActive,         setMicActive]        = useState(false);
   const [viewportMin,       setViewportMin]      = useState(0);
-  const [viewportMax,       setViewportMax]      = useState(4);
+  const [viewportMax,       setViewportMax]      = useState(5);
   const [score,             setScore]            = useState({ correct:0, total:0 });
   const [streak,            setStreak]           = useState(0);
 
@@ -65,9 +69,22 @@ export function IntervalTrainer({ settings, onSettings }) {
   const [practiceMode,      setPracticeMode]      = useState('learning');
   const [zoneId,            setZoneId]            = useState('off');
 
-  const [l1Open,   setL1Open]   = useState(false);
-  const [l2Active, setL2Active] = useState(null);
-  const [l3Active, setL3Active] = useState(null);
+  const [l1Open,          setL1Open]          = useState(false);
+  const [l2Active,        setL2Active]        = useState(null);
+  const [l3Active,        setL3Active]        = useState(null);
+  const [themePickerOpen, setThemePickerOpen] = useState(false);
+
+  const anyOverlayOpen = l1Open || l2Active !== null || l3Active !== null || themePickerOpen;
+
+  // v13: notify App to hide/show TabBar
+  useEffect(() => {
+    onOverlayChange?.(anyOverlayOpen);
+  }, [anyOverlayOpen, onOverlayChange]);
+
+  // cleanup on unmount: restore TabBar
+  useEffect(() => {
+    return () => { onOverlayChange?.(false); };
+  }, [onOverlayChange]);
 
   const { generateQuestion } = useIntervalQuestion({
     activeMode, spaceSettings, intervalsPreset, selectedIntervals,
@@ -143,8 +160,25 @@ export function IntervalTrainer({ settings, onSettings }) {
 
   const handleThemeToggle = useCallback(() => {
     if (!onSettings) return;
-    onSettings({ ...settings, colorMode:isDark?'light':'dark', themeId:isDark?'ios-light':'violet-deep' });
+    const newThemeId = isDark ? 'sky-mist' : 'indigo-night';
+    onSettings({ ...settings, colorMode: isDark ? 'light' : 'dark', themeId: newThemeId });
   }, [isDark, settings, onSettings]);
+
+  const handleOpenThemePicker = useCallback(() => {
+    setThemePickerOpen(true);
+  }, []);
+
+  const handleSelectTheme = useCallback((themeId) => {
+    if (!onSettings) return;
+    const { THEMES: T } = require('../theme');
+    const theme = T[themeId];
+    onSettings({
+      ...settings,
+      themeId,
+      colorMode: theme?.themeDark ? 'dark' : 'light',
+    });
+    setThemePickerOpen(false);
+  }, [settings, onSettings]);
 
   const openL2 = useCallback((which) => {
     setL1Open(false);
@@ -162,22 +196,16 @@ export function IntervalTrainer({ settings, onSettings }) {
       type: answerState==='correct' ? 'correct' : answerState==='wrong' ? 'wrong' : 'interval' },
   ] : [];
 
-  const tabBarH   = 'calc(60px + env(safe-area-inset-bottom, 0px))';
-  const pageBg    = isDark ? '#000' : '#F2F2F7';
-  const anyL2Open = l2Active !== null;
+  const anyL2Open   = l2Active !== null;
+  const bottomSafeSpace = 'calc(env(safe-area-inset-bottom, 0px) + 8px)';
 
   return (
     <div style={{
-      flex: 1,
-      display: 'flex',
-      flexDirection: 'column',
-      minHeight: 0,
-      background: pageBg,
-      paddingBottom: tabBarH,
-      // ── FIX: 不用 overflow:hidden（会裁掉 BottomQuickStatusBar） ──
-      // 用 overscrollBehavior:none 防止系统 bounce 滚动
+      flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0,
+      minWidth: 0,
+      width: '100%',
+      background: 'transparent',
       overscrollBehavior: 'none',
-      // iOS: 阻止橡皮筋效果
       WebkitOverflowScrolling: 'auto',
       position: 'relative',
     }}>
@@ -190,19 +218,19 @@ export function IntervalTrainer({ settings, onSettings }) {
         }}
         transition={{ type:'spring', stiffness:380, damping:38 }}
         style={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          minHeight: 0,
-          transformOrigin: '50% 40%',
-          // 不加 overflow:hidden — 保持 BottomQuickStatusBar handle 完整显示
+          flex: 1, display: 'flex', flexDirection: 'column',
+          minHeight: 0, transformOrigin: '50% 40%',
+          background: 'transparent',
+          paddingBottom: bottomSafeSpace,
         }}
       >
         <TopUtilityRail
           micActive={micActive} rms={rms} answerState={answerState}
           onMicToggle={() => setMicActive(m => !m)}
           onStats={() => {}} onTheme={handleThemeToggle}
-          onSettings={() => setL1Open(true)} isDark={isDark}
+          onSettings={() => setL1Open(true)}
+          onOpenThemePicker={handleOpenThemePicker}
+          isDark={isDark}
         />
         <FindModeCapsules activeMode={activeMode} onModeChange={handleModeChange} />
         <FocusCard
@@ -214,13 +242,12 @@ export function IntervalTrainer({ settings, onSettings }) {
           rootFret={currentQuestion?.rootFret ?? null}
           targetFret={currentQuestion?.targetFret ?? null}
         />
-        <div style={{ flex:1, minHeight:4, maxHeight:14 }} />
+        <div style={{ flex:1, minHeight:0, maxHeight:16 }} />
         <FretboardStageCard
           viewportMin={viewportMin} viewportMax={viewportMax}
           highlights={highlights} onFretTap={handleFretTap}
         />
         <div style={{ flexShrink:0, height:8 }} />
-        {/* ── L0 Handle + Quick Status ── 保持完整不裁剪 */}
         <BottomQuickStatusBar
           activeMode={activeMode}
           intervalsPreset={intervalsPreset}
@@ -232,80 +259,61 @@ export function IntervalTrainer({ settings, onSettings }) {
 
       {/* ── L1 ── */}
       <PracticeControlSheet
-        open={l1Open}
-        onClose={() => setL1Open(false)}
-        practiceMode={practiceMode}
-        onPracticeModeChange={setPracticeMode}
-        zoneId={zoneId}
-        onZoneChange={setZoneId}
+        open={l1Open} onClose={() => setL1Open(false)}
+        practiceMode={practiceMode} onPracticeModeChange={setPracticeMode}
+        zoneId={zoneId} onZoneChange={setZoneId}
         intervalsPreset={intervalsPreset}
-        onIntervalsPreset={(id) => {
-          setIntervalsPreset(id);
-          if (id !== 'custom') setSelectedIntervals([]);
-        }}
-        spacePresetId={spacePresetId}
-        onSpacePreset={handleSpacePreset}
-        flowPreset={flowPreset}
-        onFlowPreset={setFlowPreset}
+        onIntervalsPreset={(id) => { setIntervalsPreset(id); if (id !== 'custom') setSelectedIntervals([]); }}
+        spacePresetId={spacePresetId} onSpacePreset={handleSpacePreset}
+        flowPreset={flowPreset} onFlowPreset={setFlowPreset}
         onOpenSpaceL2={() => openL2('space')}
         onOpenFlowL2={() => openL2('flow')}
         onOpenIntervalsL2={() => openL2('intervals')}
-        bottomOffset={`calc(${tabBarH})`}
+        bottomOffset={0}
       />
 
       {/* ── L2 ── */}
       <SpaceEditorL2
-        isOpen={l2Active === 'space'}
-        onClose={() => setL2Active(null)}
-        spacePresetId={spacePresetId}
-        onSpaceChange={handleSpacePreset}
+        isOpen={l2Active === 'space'} onClose={() => setL2Active(null)}
+        spacePresetId={spacePresetId} onSpaceChange={handleSpacePreset}
         onOpenL3={() => openL3('space')}
       />
       <FlowEditorL2
-        isOpen={l2Active === 'flow'}
-        onClose={() => setL2Active(null)}
-        flowPreset={flowPreset}
-        onFlowChange={setFlowPreset}
+        isOpen={l2Active === 'flow'} onClose={() => setL2Active(null)}
+        flowPreset={flowPreset} onFlowChange={setFlowPreset}
         onOpenL3={() => openL3('flow')}
       />
       <IntervalsEditorL2
-        isOpen={l2Active === 'intervals'}
-        onClose={() => setL2Active(null)}
-        intervalsPreset={intervalsPreset}
-        selectedIntervals={selectedIntervals}
-        onPresetChange={(id) => {
-          setIntervalsPreset(id);
-          if (id !== 'custom') setSelectedIntervals([]);
-        }}
+        isOpen={l2Active === 'intervals'} onClose={() => setL2Active(null)}
+        intervalsPreset={intervalsPreset} selectedIntervals={selectedIntervals}
+        onPresetChange={(id) => { setIntervalsPreset(id); if (id !== 'custom') setSelectedIntervals([]); }}
         onToggleInterval={handleToggleInterval}
         onOpenL3={() => openL3('intervals')}
       />
 
       {/* ── L3 ── */}
       <SpaceEditorL3
-        isOpen={l3Active === 'space'}
-        onClose={() => setL3Active(null)}
+        isOpen={l3Active === 'space'} onClose={() => setL3Active(null)}
         spaceSettings={spaceSettings}
         onSpaceSettings={(s) => { setSpaceSettings(s); setSpacePresetId('custom'); }}
       />
       <FlowEditorL3
-        isOpen={l3Active === 'flow'}
-        onClose={() => setL3Active(null)}
-        flowPreset={flowPreset}
-        positionsPerString={positionsPerStr}
-        onFlowSettings={({ order, positionsPerString }) => {
-          setFlowPreset(order);
-          setPosPerStr(positionsPerString);
-        }}
+        isOpen={l3Active === 'flow'} onClose={() => setL3Active(null)}
+        flowPreset={flowPreset} positionsPerString={positionsPerStr}
+        onFlowSettings={({ order, positionsPerString }) => { setFlowPreset(order); setPosPerStr(positionsPerString); }}
       />
       <IntervalsEditorL3
-        isOpen={l3Active === 'intervals'}
-        onClose={() => setL3Active(null)}
+        isOpen={l3Active === 'intervals'} onClose={() => setL3Active(null)}
         selectedIntervals={selectedIntervals}
-        onIntervalsChange={(ivls) => {
-          setSelectedIntervals(ivls);
-          setIntervalsPreset(ivls.length===0 ? 'all' : 'custom');
-        }}
+        onIntervalsChange={(ivls) => { setSelectedIntervals(ivls); setIntervalsPreset(ivls.length===0 ? 'all' : 'custom'); }}
+      />
+
+      {/* ── ThemePickerSheet ── */}
+      <ThemePickerSheet
+        isOpen={themePickerOpen}
+        onClose={() => setThemePickerOpen(false)}
+        currentThemeId={settings?.themeId ?? 'indigo-night'}
+        onSelectTheme={handleSelectTheme}
       />
     </div>
   );

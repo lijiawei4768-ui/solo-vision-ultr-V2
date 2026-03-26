@@ -13,7 +13,7 @@ import { useAudioEngine } from "../hooks/useAudioEngine";
 import { useLongPress, useSwipe } from "../hooks/useGestures";
 import { GlassCard } from "../components/ui";
 import { FretboardSurface } from "../components/Fretboard";
-import { TrainerHeader } from "./TrainerShared";
+import { UniversalTopRail } from "./TrainerShared";
 import { useToast } from "../components/Toast";
 import { ThemeContext, CalibContext } from "../contexts";
 
@@ -23,11 +23,12 @@ function useT() {
 }
 
 
-export function NoteTrainer({ settings, audioEnabled, setAudioEnabled }) {
+export function NoteTrainer({ settings, audioEnabled, setAudioEnabled, onOpenTuner, onRecalibrate, onOpenSettings }) {
   const T = useT();
   const tuning = settings.tuning;
   const toast  = useToast();
   const calibCtx = useContext(CalibContext);
+  const themeCtx = useContext(ThemeContext);
 
   const [targetNote, setTargetNote] = useState("C");
   const [status,     setStatus]     = useState("listening");
@@ -86,17 +87,21 @@ export function NoteTrainer({ settings, audioEnabled, setAudioEnabled }) {
       flexDirection: "column", 
       flex: 1,
       minHeight: 0,
+      minWidth: 0,
+      width: "100%",
       gap: 14 
     }} {...longPress}>
-      <TrainerHeader
-        title="Note Trainer"
-        subtitle="Find the note on the fretboard"
-        status={status}
-        streak={streak}
-        score={score}
+      <UniversalTopRail
+        title="Notes"
+        micActive={audioEnabled}
         rms={rms}
-        audioEnabled={audioEnabled}
-        onToggleAudio={() => setAudioEnabled?.(v => !v)}
+        answerState={status === "listening" ? "idle" : status}
+        onMicToggle={() => setAudioEnabled?.(v => !v)}
+        onOpenTuner={onOpenTuner}
+        onRecalibrate={onRecalibrate}
+        onTheme={themeCtx?.toggle}
+        onSettings={onOpenSettings}
+        isDark={themeCtx?.dark ?? true}
       />
 
       <GlassCard style={{ padding: "32px 20px", textAlign: "center" }}>

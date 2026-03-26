@@ -1,11 +1,7 @@
 // components/intervals/l2/FlowEditorL2.jsx — v3 iOS Focus Mode 全屏
 //
-// 完全对照 iOS 专注模式截图：
-//   - 全屏覆盖，背景模糊显示后方 L0 内容
-//   - 预设行：大圆角 pill，左图标 + 标题副标题 + ···，行间有呼吸间距
-//   - 选中行：整行背景加亮 + 右侧勾
-//   - 底部：+ 圆形按钮 + "新预设" 文字，支持用户自定义添加
-//   - 关闭：点击背景区域 / 右上角 × / 下拉
+// 全屏覆盖，对照 iOS 专注模式截图
+// 修复：深度设置按钮改为底部固定 footer，无论哪个 preset 被选中均可访问
 
 import React, { useContext, useCallback, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -52,13 +48,11 @@ function FlowIcon({ id, size = 22, color }) {
       return (
         <svg style={s} viewBox="0 0 24 24" fill="none">
           <circle cx="12" cy="12" r="8" stroke={color} strokeWidth="1.8"/>
-          <path d="M12 8v4l3 3" stroke={color} strokeWidth="1.8" strokeLinecap="round"/>
         </svg>
       );
   }
 }
 
-// ── 自定义图标（用户添加的 preset 用音符图标）────────────────
 function CustomPresetIcon({ size = 22, color }) {
   return (
     <svg style={{ width: size, height: size, display: 'block' }} viewBox="0 0 24 24" fill="none">
@@ -69,29 +63,22 @@ function CustomPresetIcon({ size = 22, color }) {
   );
 }
 
-// ── 单行 Pill（完全对照截图）────────────────────────────────
-function PresetRow({ preset, isActive, onSelect, onMore, isDark, isCustom = false }) {
+// ── 单行 Pill ────────────────────────────────────────────────
+function PresetRow({ preset, isActive, onSelect, isDark, isCustom = false }) {
   const rowBg = isDark
     ? (isActive ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.08)')
     : (isActive ? 'rgba(0,0,0,0.10)'        : 'rgba(255,255,255,0.55)');
   const rowBorder = isDark
     ? (isActive ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.09)')
     : (isActive ? 'rgba(0,0,0,0.14)'        : 'rgba(0,0,0,0.06)');
-  const iconBg = isDark
-    ? 'rgba(255,255,255,0.12)'
-    : 'rgba(0,0,0,0.08)';
+  const iconBg = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)';
   const iconColor = isDark
     ? (isActive ? '#fff' : 'rgba(255,255,255,0.70)')
     : (isActive ? 'rgba(0,0,0,0.82)' : 'rgba(0,0,0,0.52)');
   const titleColor = isDark
     ? (isActive ? '#fff' : 'rgba(255,255,255,0.80)')
     : (isActive ? 'rgba(0,0,0,0.90)' : 'rgba(0,0,0,0.68)');
-  const subColor = isDark
-    ? 'rgba(255,255,255,0.38)'
-    : 'rgba(0,0,0,0.38)';
-  const dotColor = isDark
-    ? 'rgba(255,255,255,0.30)'
-    : 'rgba(0,0,0,0.25)';
+  const subColor = isDark ? 'rgba(255,255,255,0.38)' : 'rgba(0,0,0,0.38)';
 
   return (
     <motion.div
@@ -99,17 +86,17 @@ function PresetRow({ preset, isActive, onSelect, onMore, isDark, isCustom = fals
       whileTap={{ scale: 0.975 }}
       transition={{ type: 'spring', stiffness: 500, damping: 30 }}
       style={{
-        display:       'flex',
-        alignItems:    'center',
-        gap:           14,
-        padding:       '15px 18px',
-        borderRadius:  20,
-        background:    rowBg,
-        border:        `0.5px solid ${rowBorder}`,
-        cursor:        'pointer',
-        userSelect:    'none',
-        position:      'relative',
-        boxShadow:     isActive
+        display:    'flex',
+        alignItems: 'center',
+        gap:        14,
+        padding:    '15px 18px',
+        borderRadius: 20,
+        background: rowBg,
+        border:     `0.5px solid ${rowBorder}`,
+        cursor:     'pointer',
+        userSelect: 'none',
+        position:   'relative',
+        boxShadow:  isActive
           ? (isDark
               ? 'inset 0 0.5px 0 rgba(255,255,255,0.14), 0 2px 8px rgba(0,0,0,0.20)'
               : 'inset 0 0.5px 0 rgba(255,255,255,0.90), 0 2px 6px rgba(0,0,0,0.08)')
@@ -118,8 +105,7 @@ function PresetRow({ preset, isActive, onSelect, onMore, isDark, isCustom = fals
     >
       {/* 图标 */}
       <div style={{
-        width: 48, height: 48,
-        borderRadius: 14,
+        width: 48, height: 48, borderRadius: 14,
         background: iconBg,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         flexShrink: 0,
@@ -149,11 +135,10 @@ function PresetRow({ preset, isActive, onSelect, onMore, isDark, isCustom = fals
         )}
       </div>
 
-      {/* 右侧：选中勾 或 三点 */}
-      <AnimatePresence mode="wait" initial={false}>
-        {isActive ? (
+      {/* 选中勾 */}
+      <AnimatePresence>
+        {isActive && (
           <motion.div
-            key="check"
             initial={{ scale: 0.5, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.5, opacity: 0 }}
@@ -171,26 +156,13 @@ function PresetRow({ preset, isActive, onSelect, onMore, isDark, isCustom = fals
               />
             </svg>
           </motion.div>
-        ) : (
-          <motion.div
-            key="dots"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={e => { e.stopPropagation(); onMore?.(preset.id); }}
-            style={{ display: 'flex', gap: 3.5, padding: '6px 2px', cursor: 'pointer' }}
-          >
-            {[0, 1, 2].map(i => (
-              <div key={i} style={{ width: 4, height: 4, borderRadius: '50%', background: dotColor }} />
-            ))}
-          </motion.div>
         )}
       </AnimatePresence>
     </motion.div>
   );
 }
 
-// ── 添加自定义 preset 对话框（内嵌在页面底部）────────────────
+// ── 添加自定义 preset ────────────────────────────────────────
 function AddPresetRow({ onAdd, isDark }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState('');
@@ -200,7 +172,7 @@ function AddPresetRow({ onAdd, isDark }) {
     setEditing(false);
   };
 
-  const plusBg = isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.10)';
+  const plusBg     = isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.10)';
   const plusBorder = isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.12)';
   const labelColor = isDark ? 'rgba(255,255,255,0.42)' : 'rgba(0,0,0,0.40)';
 
@@ -244,9 +216,7 @@ function AddPresetRow({ onAdd, isDark }) {
               border: `0.5px solid ${isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.10)'}`,
             }}
           >
-            <span style={{ fontSize: 13, color: isDark ? '#fff' : 'rgba(0,0,0,0.72)', fontFamily: FONT_TEXT }}>
-              添加
-            </span>
+            <span style={{ fontSize: 13, color: isDark ? '#fff' : 'rgba(0,0,0,0.72)', fontFamily: FONT_TEXT }}>添加</span>
           </motion.div>
           <motion.div
             onClick={() => { setEditing(false); setName(''); }}
@@ -261,17 +231,14 @@ function AddPresetRow({ onAdd, isDark }) {
           key="add-btn"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, paddingTop: 4 }}
+          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}
         >
-          {/* + 圆圈（对照截图）*/}
           <motion.div
             onClick={() => setEditing(true)}
             whileTap={{ scale: 0.88 }}
             style={{
               width: 52, height: 52, borderRadius: '50%',
-              background: plusBg,
-              border: `0.5px solid ${plusBorder}`,
+              background: plusBg, border: `0.5px solid ${plusBorder}`,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               cursor: 'pointer',
             }}
@@ -283,10 +250,7 @@ function AddPresetRow({ onAdd, isDark }) {
               />
             </svg>
           </motion.div>
-          {/* 标签文字（对照截图"新专注模式"）*/}
-          <span style={{ fontSize: 12, color: labelColor, fontFamily: FONT_TEXT, letterSpacing: '0.01em' }}>
-            新预设
-          </span>
+          <span style={{ fontSize: 12, color: labelColor, fontFamily: FONT_TEXT }}>新预设</span>
         </motion.div>
       )}
     </AnimatePresence>
@@ -309,13 +273,14 @@ export function FlowEditorL2({ isOpen, onClose, flowPreset, onFlowChange, onOpen
     ]);
   }, []);
 
-  // ── 背景：对照截图，整个屏幕是带色的毛玻璃
   const backdropBg = isDark
     ? 'rgba(8, 8, 16, 0.72)'
     : 'rgba(195, 200, 210, 0.55)';
 
-  const closeColor = isDark ? 'rgba(255,255,255,0.50)' : 'rgba(0,0,0,0.40)';
-  const closeBtnBg = isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.07)';
+  const closeColor  = isDark ? 'rgba(255,255,255,0.50)' : 'rgba(0,0,0,0.40)';
+  const closeBtnBg  = isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.07)';
+  const deepDiveC   = isDark ? 'rgba(255,255,255,0.38)' : 'rgba(0,0,0,0.36)';
+  const divider     = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)';
 
   const allPresets = [...FLOW_PRESETS, ...customPresets];
 
@@ -327,36 +292,34 @@ export function FlowEditorL2({ isOpen, onClose, flowPreset, onFlowChange, onOpen
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.22 }}
-          // 点击背景关闭
           onClick={onClose}
           style={{
-            position: 'fixed', inset: 0, zIndex: 60,
-            background: backdropBg,
-            backdropFilter: 'blur(36px)',
+            position:             'fixed',
+            inset:                0,
+            zIndex:               60,
+            background:           backdropBg,
+            backdropFilter:       'blur(36px)',
             WebkitBackdropFilter: 'blur(36px)',
-            display: 'flex',
-            flexDirection: 'column',
-            // 内容区域在屏幕垂直中心偏下（对照截图）
-            justifyContent: 'center',
-            overflowY: 'auto',
+            display:              'flex',
+            flexDirection:        'column',
+            overflowY:            'auto',
           }}
         >
-          {/* 整个内容区 — stopPropagation 防止穿透关闭 */}
+          {/* 内容区 — stopPropagation 防止穿透关闭 */}
           <div
             onClick={e => e.stopPropagation()}
             style={{
-              display: 'flex',
+              display:       'flex',
               flexDirection: 'column',
-              padding: '0 24px',
-              // 顶部留出状态栏高度
-              paddingTop: 'max(env(safe-area-inset-top, 0px), 56px)',
+              padding:       '0 24px',
+              paddingTop:    'max(env(safe-area-inset-top, 0px), 56px)',
               paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 32px)',
-              minHeight: '100%',
-              boxSizing: 'border-box',
+              minHeight:     '100%',
+              boxSizing:     'border-box',
             }}
           >
-            {/* ── 右上角关闭按钮 ── */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 24 }}>
+            {/* 右上角关闭按钮 */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
               <motion.div
                 onClick={onClose}
                 whileTap={{ scale: 0.85 }}
@@ -374,7 +337,7 @@ export function FlowEditorL2({ isOpen, onClose, flowPreset, onFlowChange, onOpen
               </motion.div>
             </div>
 
-            {/* ── Preset 列表（垂直居中，占据屏幕主要空间）── */}
+            {/* Preset 列表 — 垂直居中 */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {allPresets.map((p, i) => (
@@ -388,7 +351,6 @@ export function FlowEditorL2({ isOpen, onClose, flowPreset, onFlowChange, onOpen
                       preset={p}
                       isActive={flowPreset === p.id}
                       onSelect={handleSelect}
-                      onMore={onOpenL3}
                       isDark={isDark}
                       isCustom={p.id.startsWith('custom-')}
                     />
@@ -397,8 +359,36 @@ export function FlowEditorL2({ isOpen, onClose, flowPreset, onFlowChange, onOpen
               </div>
             </div>
 
-            {/* ── 底部：+ 新预设（对照截图底部区域）── */}
-            <div style={{ paddingTop: 32 }}>
+            {/* 分隔线 */}
+            <div style={{ height: 0.5, background: divider, margin: '24px 4px 16px' }} />
+
+            {/* 深度设置 footer — 始终可见，不随选中状态变化 */}
+            {onOpenL3 && (
+              <motion.div
+                onClick={onOpenL3}
+                whileTap={{ scale: 0.96, opacity: 0.6 }}
+                style={{
+                  display:        'flex',
+                  alignItems:     'center',
+                  justifyContent: 'center',
+                  gap:            8,
+                  padding:        '12px 0',
+                  cursor:         'pointer',
+                  marginBottom:   16,
+                }}
+              >
+                <svg width={14} height={14} viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="3" stroke={deepDiveC} strokeWidth="1.8"/>
+                  <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" stroke={deepDiveC} strokeWidth="1.8"/>
+                </svg>
+                <span style={{ fontSize: 14, color: deepDiveC, fontFamily: FONT_TEXT, fontWeight: 400 }}>
+                  深度设置
+                </span>
+              </motion.div>
+            )}
+
+            {/* + 新预设 */}
+            <div style={{ paddingBottom: 8 }}>
               <AddPresetRow onAdd={handleAddPreset} isDark={isDark} />
             </div>
           </div>

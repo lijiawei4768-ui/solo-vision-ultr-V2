@@ -28,7 +28,7 @@ import { useAudioEngine } from "../hooks/useAudioEngine";
 import { useLongPress } from "../hooks/useGestures";
 import { GlassCard, AccentChip, BottomSheet } from "../components/ui";
 import { FretboardSurface } from "../components/Fretboard";
-import { TrainerHeader } from "./TrainerShared";
+import { UniversalTopRail } from "./TrainerShared";
 import { useToast } from "../components/Toast";
 import { ThemeContext, CalibContext } from "../contexts";
 
@@ -299,11 +299,12 @@ const ENTRY_INFO = {
 // ─────────────────────────────────────────────────────────────
 // MAIN COMPONENT
 // ─────────────────────────────────────────────────────────────
-export function ScaleTrainer({ settings, audioEnabled, setAudioEnabled }) {
+export function ScaleTrainer({ settings, audioEnabled, setAudioEnabled, onOpenTuner, onRecalibrate, onOpenSettings }) {
   const T        = useT();
   const tuning   = settings.tuning;
   const toast    = useToast();
   const calibCtx = useContext(CalibContext);
+  const themeCtx = useContext(ThemeContext);
   const scaleNames = Object.keys(SCALES);
 
   // ── state ──
@@ -441,15 +442,17 @@ export function ScaleTrainer({ settings, audioEnabled, setAudioEnabled }) {
       minHeight: 0,
       gap: 14 
     }} {...longPress}>
-      <TrainerHeader
-        title="Scale Trainer"
-        subtitle="Navigate scale degrees"
-        status={status}
-        streak={streak}
-        score={score}
+      <UniversalTopRail
+        title="Scales"
+        micActive={audioEnabled}
         rms={rms}
-        audioEnabled={audioEnabled}
-        onToggleAudio={() => setAudioEnabled?.(v => !v)}
+        answerState={status === "listening" ? "idle" : status}
+        onMicToggle={() => setAudioEnabled?.(v => !v)}
+        onOpenTuner={onOpenTuner}
+        onRecalibrate={onRecalibrate}
+        onTheme={themeCtx?.toggle}
+        onSettings={onOpenSettings}
+        isDark={themeCtx?.dark ?? true}
       />
 
       {/* ── Root selector ── */}

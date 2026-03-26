@@ -1,41 +1,50 @@
-// components/intervals/l0/FretboardStageCard.jsx  — Visual Reset v7b
+// components/intervals/l0/FretboardStageCard.jsx — v8
 //
-// No nested inner card. One thin-bordered container; fretboard fills it directly.
-// Dark: transparent bg, thin white border. Light: white card, quiet shadow.
+// v8: 使用 T.glass 毛玻璃 token，消除纯白/纯黑背景
 import React, { useContext } from 'react';
 import { ThemeContext } from '../../../contexts';
+import { DT, FONT_MONO } from '../../../theme';
 import { HEIGHT } from '../../../tokens/spacing';
-import { FONT_MONO } from '../../../theme';
 import { FretboardViewport } from './FretboardViewport';
 
-function useIsDark() { return (useContext(ThemeContext)?.dark) ?? true; }
+function useT() {
+  const ctx = useContext(ThemeContext);
+  return ctx?.tokens ?? DT;
+}
 
 export function FretboardStageCard({
-  viewportMin = 0, viewportMax = 4,
+  viewportMin = 0, viewportMax = 5,
   highlights  = [], onFretTap,
 }) {
-  const isDark = useIsDark();
+  const T      = useT();
+  const isDark = T.themeDark ?? true;
 
-  const cardBg     = isDark ? 'transparent'            : '#fff';
-  const cardBorder = isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.07)';
-  const cardShadow = isDark ? 'none'                   : '0 1px 4px rgba(0,0,0,0.06)';
-  const labelColor = isDark ? 'rgba(235,235,245,0.22)' : 'rgba(0,0,0,0.30)';
-  const subColor   = isDark ? 'rgba(235,235,245,0.12)' : 'rgba(0,0,0,0.18)';
+  // v8: T.glass 毛玻璃
+  const cardBg      = T.glass?.surface1  ?? (isDark ? 'rgba(14,10,38,0.65)' : 'rgba(255,255,255,0.65)');
+  const cardBlur    = T.glass?.blur      ?? 'blur(20px) saturate(180%)';
+  const cardBorder  = T.glass?.border    ?? (isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)');
+  const cardBorderTop = T.glass?.borderTop ?? cardBorder;
+  const cardShadow  = isDark ? 'none' : '0 1px 6px rgba(0,0,0,0.06)';
+
+  const labelColor  = T.textTertiary ?? (isDark ? 'rgba(235,235,245,0.22)' : 'rgba(0,0,0,0.30)');
+  const subColor    = isDark ? 'rgba(235,235,245,0.12)' : 'rgba(0,0,0,0.18)';
 
   return (
     <div style={{
-      height:        HEIGHT.fretboardMobile,
-      margin:        '0 12px',
-      borderRadius:  22,
-      background:    cardBg,
-      border:        `0.5px solid ${cardBorder}`,
-      boxShadow:     cardShadow,
-      overflow:      'hidden',
-      flexShrink:    0,
-      display:       'flex',
-      flexDirection: 'column',
+      height:              HEIGHT.fretboardMobile,
+      margin:              '0 12px',
+      borderRadius:        22,
+      background:          cardBg,
+      backdropFilter:      cardBlur,
+      WebkitBackdropFilter: cardBlur,
+      border:              `0.5px solid ${cardBorder}`,
+      boxShadow:           `inset 0 0.5px 0 ${cardBorderTop}, ${cardShadow}`,
+      overflow:            'hidden',
+      flexShrink:          0,
+      display:             'flex',
+      flexDirection:       'column',
     }}>
-      {/* Lean context strip */}
+      {/* 上下文标签条 */}
       <div style={{ padding:'6px 13px 4px', display:'flex', alignItems:'center', flexShrink:0 }}>
         <span style={{
           flex:1, fontSize:7.5, fontWeight:400, color:labelColor,
@@ -49,7 +58,7 @@ export function FretboardStageCard({
         </span>
       </div>
 
-      {/* Fretboard fills remaining height directly */}
+      {/* 指板主体 */}
       <div style={{ flex:1, minHeight:0, paddingLeft:2, paddingRight:4, paddingBottom:7, overflow:'hidden', display:'flex', alignItems:'stretch' }}>
         <FretboardViewport
           viewportMin={viewportMin}

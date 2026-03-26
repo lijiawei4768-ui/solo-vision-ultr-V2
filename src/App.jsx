@@ -1,20 +1,8 @@
-// ─────────────────────────────────────────────────────────────
-// SOLO VISION ULTRA — Root App Component
-// Pre-flight gating → Main App with 5-tab navigation
-//
-// v2.3 修复:
-//   • TAB_TITLES 完整 6-tab × 3-lang 映射（修复"我的训练"一刀切 bug）
-//   • header 仅在 home/persona 渲染（修复 trainer 页面标题透出 bug）
-//   • TabBar 始终渲染（删除 trainerCCOpen 条件，修复进入 interval 后无法切页 bug）
-//   • trainer 内容区 paddingBottom 为 TabBar 留空间（修复 BottomBar 被遮挡 bug）
-//   • 删除 trainerCCOpen / setTrainerCCOpen（不再需要）
-// ─────────────────────────────────────────────────────────────
-import React, {
-  useState, useEffect, useCallback
-} from "react";
+
+import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
-import { DT, FONT_DISPLAY, FONT_TEXT, getTokensForTheme } from "./theme";
+import { DT, FONT_DISPLAY, FONT_TEXT, getTokensForTheme, getTokensV2, PRESETS, LEGACY_TO_PRESET } from "./theme";
 import { ThemeContext, CalibContext } from "./contexts";
 import { LangContext } from "./i18n";
 import { INSTRUMENTS } from "./constants";
@@ -22,48 +10,46 @@ import { ToastProvider } from "./components/Toast";
 import { TabBar } from "./components/TabBar";
 import { MeshBackground } from "./components/MeshBackground";
 import { SettingsSheet, TuningSheet, CalibrationSheet } from "./components/ControlCenter";
+import { ThemePickerSheet } from "./components/ThemePickerSheet";
+import { FullSettingsSheet } from "./components/FullSettingsSheet";
 import { usePracticeHistory } from "./hooks/usePracticeHistory";
 import { useProgressSystem } from "./hooks/useProgressSystem";
-import { useSwipe } from "./hooks/useGestures";
 
-import { HomeView }      from "./views/HomeView";
-import { PersonaView }   from "./views/PersonaView";
+import { HomeView } from "./views/HomeView";
+import { PersonaView } from "./views/PersonaView";
 import { PreFlightView } from "./views/PreFlightView";
 import { OnboardingView } from "./views/OnboardingView";
+import { TunerView } from "./views/TunerView";
 
-import { NoteTrainer }     from "./trainers/NotesTrainer";
+import { NoteTrainer } from "./trainers/NotesTrainer";
 import { IntervalTrainer } from "./trainers/IntervalsTrainer";
-import { ChangesTrainer }  from "./trainers/ChangesTrainer";
-import { ScaleTrainer }    from "./trainers/ScalesTrainer";
+import { ChangesTrainer } from "./trainers/ChangesTrainer";
+import { ScaleTrainer } from "./trainers/ScalesTrainer";
 
 export { ThemeContext, useTheme, CalibContext, useCalib } from "./contexts";
 
-// ── Default settings ─────────────────────────────────────────
 const DEFAULT_SETTINGS = {
-  instrument:       "6-String Guitar",
-  tuning:           INSTRUMENTS["6-String Guitar"].defaultTuning,
-  minFret:          0,
-  maxFret:          12,
-  leftHanded:       false,
-  showNoteNames:    true,
+  instrument: "6-String Guitar",
+  tuning: INSTRUMENTS["6-String Guitar"].defaultTuning,
+  minFret: 0,
+  maxFret: 12,
+  leftHanded: false,
+  showNoteNames: true,
   showAllPositions: false,
-  sensitivity:      0.01,
-  colorMode:        "dark",
-  themeId:          "violet-deep",
+  sensitivity: 0.01,
+  colorMode: "light",
+  themeId: "svu-light",
 };
 
-// ── Tab 标题完整映射（6 tabs × 3 langs）────────────────────────
-// lang: "en" | "zh" | "mixed"
 const TAB_TITLES = {
-  home:     { en: "Home",       zh: "首页",    mixed: "Home" },
-  note:     { en: "Notes",      zh: "单音",    mixed: "单音" },
-  interval: { en: "Intervals",  zh: "音程",    mixed: "音程" },
-  changes:  { en: "Changes",    zh: "和弦进行", mixed: "Changes" },
-  scale:    { en: "Scales",     zh: "音阶",    mixed: "Scales" },
-  persona:  { en: "Me",         zh: "我",      mixed: "Me" },
+  home: { en: "Home", zh: "首页", mixed: "Home" },
+  note: { en: "Notes", zh: "单音", mixed: "单音" },
+  interval: { en: "Intervals", zh: "音程", mixed: "音程" },
+  changes: { en: "Changes", zh: "和弦进行", mixed: "Changes" },
+  scale: { en: "Scales", zh: "音阶", mixed: "Scales" },
+  persona: { en: "Me", zh: "我", mixed: "Me" },
 };
 
-// trainer tabs 不显示 App header，内容区也不需要侧边 padding
 const TRAINER_TABS = new Set(["note", "interval", "changes", "scale"]);
 
 function loadSettings() {
@@ -72,10 +58,12 @@ function loadSettings() {
     if (!raw) return DEFAULT_SETTINGS;
     const saved = JSON.parse(raw);
     if (!saved.themeId) {
-      saved.themeId = (saved.colorMode === "light") ? "ios-light" : "violet-deep";
+      saved.themeId = saved.colorMode === "light" ? "svu-light" : "indigo-night";
     }
     return { ...DEFAULT_SETTINGS, ...saved };
-  } catch { return DEFAULT_SETTINGS; }
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
 }
 
 function loadCalib() {
@@ -101,22 +89,97 @@ function loadHasSeenOnboarding() {
   return false;
 }
 
-// ─────────────────────────────────────────────────────────────
-// MAIN APP SHELL
-// ─────────────────────────────────────────────────────────────
+function loadAxis(key, fallback) {
+  try {
+    return localStorage.getItem(key) || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function saveAxis(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {}
+}
+
+function loadMaterialTuning() {
+  try {
+    const raw = localStorage.getItem("svultra_material_tuning");
+    if (!raw) {
+      return {
+        blurOffset: 0,
+        saturateBoost: 0,
+        alphaShift: 0,
+        borderBoost: 1,
+        shadowBoost: 1,
+      };
+    }
+    return {
+      blurOffset: 0,
+      saturateBoost: 0,
+      alphaShift: 0,
+      borderBoost: 1,
+      shadowBoost: 1,
+      ...JSON.parse(raw),
+    };
+  } catch {
+    return {
+      blurOffset: 0,
+      saturateBoost: 0,
+      alphaShift: 0,
+      borderBoost: 1,
+      shadowBoost: 1,
+    };
+  }
+}
+
+function loadCustomAccentScheme() {
+  try {
+    const raw = localStorage.getItem("svultra_custom_accent_scheme");
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function migrateSettings() {
+  try {
+    if (localStorage.getItem("svultra_bg")) return;
+    const settings = JSON.parse(localStorage.getItem("svultra_settings") || "{}");
+    const themeId = settings.themeId || "svu-light";
+    const preset = LEGACY_TO_PRESET[themeId] ?? LEGACY_TO_PRESET["svu-light"];
+    if (!preset) return;
+    localStorage.setItem("svultra_bg", preset.bgScheme);
+    localStorage.setItem("svultra_accent", preset.accentId);
+    localStorage.setItem("svultra_surface", preset.surfaceId);
+  } catch {}
+}
+
+migrateSettings();
+
 export default function App() {
-  const [settings,     setSettings]     = useState(loadSettings);
-  const [calibData,    setCalibData]    = useState(loadCalib);
-  const [activeTab,    setActiveTab]    = useState("home");
-  const [ccOpen,       setCcOpen]       = useState(false);
+  const [settings, setSettings] = useState(loadSettings);
+  const [calibData, setCalibData] = useState(loadCalib);
+  const [activeTab, setActiveTab] = useState("home");
+  const [ccOpen, setCcOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [tuningOpen,   setTuningOpen]   = useState(false);
+  const [tuningOpen, setTuningOpen] = useState(false);
+  const [trainerTunerOpen, setTrainerTunerOpen] = useState(false);
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState(loadHasSeenOnboarding);
   const [startOnboardingWithTuner, setStartOnboardingWithTuner] = useState(false);
   const [mainPageIndex, setMainPageIndex] = useState(0);
 
-  const verticalSwipe = { onTouchStart: () => {}, onTouchEnd: () => {}, onMouseDown: () => {}, onMouseUp: () => {} };
+  const [bgScheme, setBgScheme] = useState(() => loadAxis("svultra_bg", "frost-light"));
+  const [accentId, setAccentId] = useState(() => loadAxis("svultra_accent", "indigo"));
+  const [surfaceId, setSurfaceId] = useState(() => loadAxis("svultra_surface", "glass-mid"));
+  const [materialTuning, setMaterialTuning] = useState(loadMaterialTuning);
+  const [customAccentScheme, setCustomAccentScheme] = useState(loadCustomAccentScheme);
+
+  const [themePickerOpen, setThemePickerOpen] = useState(false);
+  const [fullSettingsOpen, setFullSettingsOpen] = useState(false);
 
   const [lang, setLangState] = useState(loadLang);
   const setLang = useCallback((l) => {
@@ -125,15 +188,46 @@ export default function App() {
   }, []);
   const langCtxValue = { lang, setLang };
 
-  const historyData    = usePracticeHistory();
+  const historyData = usePracticeHistory();
   const progressSystem = useProgressSystem();
 
-  const T      = getTokensForTheme(settings.themeId ?? "violet-deep");
+  const T = (bgScheme && accentId && surfaceId)
+    ? getTokensV2({
+        bgScheme,
+        accentId,
+        surfaceId,
+        materialTuning,
+        accentOverride: accentId === "custom" ? customAccentScheme : null,
+      })
+    : getTokensForTheme(settings.themeId ?? "svu-light");
   const isDark = T.themeDark;
 
+  const handleSelectBg = (id) => { setBgScheme(id); saveAxis("svultra_bg", id); };
+  const handleSelectAccent = (id) => { setAccentId(id); saveAxis("svultra_accent", id); };
+  const handleSelectSurface = (id) => { setSurfaceId(id); saveAxis("svultra_surface", id); };
+  const handleSelectPreset = (presetId) => {
+    const preset = PRESETS[presetId];
+    if (!preset) return;
+    handleSelectBg(preset.bgScheme);
+    handleSelectAccent(preset.accentId);
+    handleSelectSurface(preset.surfaceId);
+  };
+  const handleMaterialTuning = useCallback((next) => {
+    setMaterialTuning((prev) => {
+      const resolved = typeof next === "function" ? next(prev) : next;
+      try { localStorage.setItem("svultra_material_tuning", JSON.stringify(resolved)); } catch {}
+      return resolved;
+    });
+  }, []);
+  const handleApplyCustomAccentScheme = useCallback((scheme) => {
+    setCustomAccentScheme(scheme);
+    try { localStorage.setItem("svultra_custom_accent_scheme", JSON.stringify(scheme)); } catch {}
+    setAccentId("custom");
+    saveAxis("svultra_accent", "custom");
+  }, []);
+
   useEffect(() => {
-    try { localStorage.setItem("svultra_settings", JSON.stringify(settings)); }
-    catch {}
+    try { localStorage.setItem("svultra_settings", JSON.stringify(settings)); } catch {}
   }, [settings]);
 
   const handleTabChange = useCallback((tab) => {
@@ -145,8 +239,7 @@ export default function App() {
 
   const handleCalibComplete = useCallback((data) => {
     setCalibData(data);
-    try { localStorage.setItem("svultra_calib", JSON.stringify(data)); }
-    catch {}
+    try { localStorage.setItem("svultra_calib", JSON.stringify(data)); } catch {}
   }, []);
 
   const handleRecalibrate = useCallback(() => {
@@ -154,6 +247,7 @@ export default function App() {
     try { localStorage.removeItem("svultra_calib"); } catch {}
     setSettingsOpen(false);
     setCcOpen(false);
+    setTrainerTunerOpen(false);
   }, []);
 
   const handleOnboardingComplete = useCallback(() => {
@@ -167,28 +261,29 @@ export default function App() {
     setCcOpen(false);
     setSettingsOpen(false);
     setTuningOpen(false);
+    setTrainerTunerOpen(false);
     setActiveTab("home");
   }, []);
 
   const handleSettings = useCallback((next) => setSettings(next), []);
 
-  const swipe = useSwipe(() => setCcOpen(true), null);
-
   const themeCtxValue = {
-    dark:   isDark,
+    dark: isDark,
     tokens: T,
-    toggle: () => setSettings(s => ({
-      ...s,
-      themeId:   isDark ? "ios-light" : "violet-deep",
-      colorMode: isDark ? "light"     : "dark",
-    })),
+    toggle: () => {
+      if (isDark) {
+        handleSelectBg("frost-light");
+        handleSelectAccent("indigo");
+      } else {
+        handleSelectBg("mesh-indigo");
+        handleSelectAccent("violet");
+      }
+    },
   };
 
   const calibCtxValue = {
     pitchOffset: calibData?.pitchOffset ?? 1.0,
-    minRms:      calibData?.noiseFloor
-               ?? calibData?.minRms
-               ?? (settings.sensitivity ?? 0.01),
+    minRms: calibData?.noiseFloor ?? calibData?.minRms ?? (settings.sensitivity ?? 0.01),
   };
 
   const commonWrapper = (children) => (
@@ -197,6 +292,8 @@ export default function App() {
         <CalibContext.Provider value={calibCtxValue}>
           <div style={{
             minHeight: "100dvh",
+            display: "flex",
+            flexDirection: "column",
             background: T.surface0,
             color: T.textPrimary,
             fontFamily: FONT_TEXT,
@@ -205,7 +302,24 @@ export default function App() {
           }}>
             <MeshBackground />
             <ToastProvider>
-              {children}
+              <div style={{
+                maxWidth: 560,
+                margin: "0 auto",
+                flex: 1,
+                minHeight: 0,
+                display: "flex",
+                flexDirection: "column",
+                paddingTop: "env(safe-area-inset-top, 0px)",
+                paddingBottom: "env(safe-area-inset-bottom, 0px)",
+                paddingLeft: 20,
+                paddingRight: 20,
+                position: "relative",
+                zIndex: 1,
+                width: "100%",
+                overflow: "hidden",
+              }}>
+                {children}
+              </div>
             </ToastProvider>
           </div>
         </CalibContext.Provider>
@@ -215,20 +329,18 @@ export default function App() {
 
   if (!hasSeenOnboarding) {
     return commonWrapper(
-      <OnboardingView onComplete={() => { handleOnboardingComplete(); setStartOnboardingWithTuner(false); }} startWithTuner={startOnboardingWithTuner} />
+      <OnboardingView
+        onComplete={() => { handleOnboardingComplete(); setStartOnboardingWithTuner(false); }}
+        startWithTuner={startOnboardingWithTuner}
+      />
     );
   }
 
   if (!calibData) {
-    return commonWrapper(
-      <PreFlightView onComplete={handleCalibComplete} settings={settings} />
-    );
+    return commonWrapper(<PreFlightView onComplete={handleCalibComplete} settings={settings} />);
   }
 
-  // ── 当前 tab 是否为训练器 ────────────────────────────────────
   const isTrainerTab = TRAINER_TABS.has(activeTab);
-
-  // ── 当前 tab 标题（支持 en / zh / mixed）────────────────────
   const pageTitle = TAB_TITLES[activeTab]?.[lang] ?? TAB_TITLES[activeTab]?.en ?? activeTab;
 
   return (
@@ -236,57 +348,63 @@ export default function App() {
       <ThemeContext.Provider value={themeCtxValue}>
         <CalibContext.Provider value={calibCtxValue}>
           <ToastProvider>
-            <div
-              {...swipe}
-              {...(!isTrainerTab && activeTab === "home" ? verticalSwipe : {})}
-              style={{
-                height: "100dvh",
-                background: T.surface0,
-                color: T.textPrimary,
-                fontFamily: FONT_TEXT,
-                position: "relative",
-                overflow: "hidden",
-              }}
-            >
-              <MeshBackground dark={isDark} />
+            <div style={{
+              height: "100dvh",
+              display: "flex",
+              flexDirection: "column",
+              background: T.surface0,
+              color: T.textPrimary,
+              fontFamily: FONT_TEXT,
+              position: "relative",
+              overflow: "hidden",
+            }}>
+              <MeshBackground />
+              <style>{`
+                .svu-hide-scrollbar {
+                  scrollbar-width: none;
+                  -ms-overflow-style: none;
+                }
+                .svu-hide-scrollbar::-webkit-scrollbar {
+                  width: 0;
+                  height: 0;
+                  display: none;
+                }
+              `}</style>
 
-              {/* ── 内容层 ────────────────────────────────────────────
-                  trainer tabs:
-                    • 不要侧边 padding（指板需要贴边）
-                    • paddingBottom 为 TabBar 留出空间（~72px）
-                    • overflow: hidden
-                  home/persona tabs:
-                    • 保留 px-20 侧边 padding
-                    • home: overflow auto（可滚动）
-              ─────────────────────────────────────────────────────── */}
-              <div style={isTrainerTab ? {
+              <div className={!isTrainerTab && (activeTab === "home" || activeTab === "persona") ? "svu-hide-scrollbar" : undefined} style={isTrainerTab ? {
                 maxWidth: 560, margin: "0 auto",
                 height: "100dvh",
                 display: "flex",
                 flexDirection: "column",
-                paddingTop: "env(safe-area-inset-top, 0px)",
-                // TabBar 约 68px 高 + safe area bottom
-                paddingBottom: "calc(68px + env(safe-area-inset-bottom, 0px))",
+                width: "100%",
+                minWidth: 0,
+                paddingTop: 0,
+                paddingBottom: 0,
+                paddingLeft: 20,
+                paddingRight: 20,
                 position: "relative", zIndex: 1,
                 overflow: "hidden",
               } : {
                 maxWidth: 560, margin: "0 auto",
                 flex: 1,
+                minHeight: 0,
+                width: "100%",
+                minWidth: 0,
                 display: "flex",
                 flexDirection: "column",
                 paddingTop: "env(safe-area-inset-top, 0px)",
-                paddingBottom: "env(safe-area-inset-bottom, 0px)",
+                paddingBottom: (activeTab === "home" || activeTab === "persona")
+                  ? "calc(env(safe-area-inset-bottom, 0px) + 104px)"
+                  : "env(safe-area-inset-bottom, 0px)",
                 paddingLeft: 20, paddingRight: 20,
                 position: "relative", zIndex: 1,
                 overflow: (activeTab === "home" || activeTab === "persona") ? "auto" : "hidden",
+                WebkitOverflowScrolling: "touch",
               }}>
-
-                {/* ── App Header — 仅在 home / persona 显示 ──────── */}
                 {!isTrainerTab && (
                   <header style={{
                     display: "flex", alignItems: "center", justifyContent: "space-between",
-                    height: 72,
-                    flexShrink: 0,
+                    height: 72, flexShrink: 0,
                   }}>
                     <motion.div
                       layoutId="app-title"
@@ -296,7 +414,8 @@ export default function App() {
                     </motion.div>
                     <div style={{ display: "flex", gap: 8 }}>
                       <motion.button
-                        whileTap={{ scale: 0.88 }} transition={DT.springSnap}
+                        whileTap={{ scale: 0.88 }}
+                        transition={DT.springSnap}
                         onClick={themeCtxValue.toggle}
                         style={{
                           width: 34, height: 34, borderRadius: 10,
@@ -308,7 +427,8 @@ export default function App() {
                         {isDark ? "☀️" : "🌙"}
                       </motion.button>
                       <motion.button
-                        whileTap={{ scale: 0.88 }} transition={DT.springSnap}
+                        whileTap={{ scale: 0.88 }}
+                        transition={DT.springSnap}
                         onClick={() => setCcOpen(true)}
                         style={{
                           width: 34, height: 34, borderRadius: 10,
@@ -323,16 +443,9 @@ export default function App() {
                   </header>
                 )}
 
-                {/* ── 页面内容 ────────────────────────────────────── */}
                 <AnimatePresence mode="wait">
                   {activeTab === "home" && (
-                    <HomeView
-                      key="home"
-                      settings={settings}
-                      historyData={historyData}
-                      onTabChange={handleTabChange}
-                      progress={progressSystem.progress}
-                    />
+                    <HomeView key="home" settings={settings} historyData={historyData} onTabChange={handleTabChange} progress={progressSystem.progress} />
                   )}
                   {activeTab === "note" && (
                     <NoteTrainer
@@ -340,6 +453,9 @@ export default function App() {
                       settings={settings}
                       audioEnabled={audioEnabled}
                       setAudioEnabled={setAudioEnabled}
+                      onOpenTuner={() => setTrainerTunerOpen(true)}
+                      onRecalibrate={handleRecalibrate}
+                      onOpenSettings={() => setCcOpen(true)}
                     />
                   )}
                   {activeTab === "interval" && (
@@ -357,6 +473,9 @@ export default function App() {
                       settings={settings}
                       audioEnabled={audioEnabled}
                       setAudioEnabled={setAudioEnabled}
+                      onOpenTuner={() => setTrainerTunerOpen(true)}
+                      onRecalibrate={handleRecalibrate}
+                      onOpenSettings={() => setCcOpen(true)}
                     />
                   )}
                   {activeTab === "scale" && (
@@ -365,6 +484,9 @@ export default function App() {
                       settings={settings}
                       audioEnabled={audioEnabled}
                       setAudioEnabled={setAudioEnabled}
+                      onOpenTuner={() => setTrainerTunerOpen(true)}
+                      onRecalibrate={handleRecalibrate}
+                      onOpenSettings={() => setCcOpen(true)}
                     />
                   )}
                   {activeTab === "persona" && (
@@ -384,26 +506,76 @@ export default function App() {
                 </AnimatePresence>
               </div>
 
-              {/* ── TabBar — 始终渲染，z-index:40 高于所有内容层 ─── */}
               <TabBar activeTab={activeTab} onTabChange={handleTabChange} />
 
+              <AnimatePresence>
+                {trainerTunerOpen && (
+                  <TunerView onClose={() => setTrainerTunerOpen(false)} />
+                )}
+              </AnimatePresence>
+
               <SettingsSheet
-                open={ccOpen} onClose={() => setCcOpen(false)}
-                settings={settings} onSettings={handleSettings}
+                open={ccOpen}
+                onClose={() => setCcOpen(false)}
+                settings={settings}
+                onSettings={handleSettings}
                 onOpenSettings={() => { setCcOpen(false); setSettingsOpen(true); }}
                 onOpenTuning={() => { setCcOpen(false); setTuningOpen(true); }}
                 onStartOnboarding={(withTuner) => { startOnboarding(Boolean(withTuner)); }}
+                bgScheme={bgScheme}
+                accentId={accentId}
+                surfaceId={surfaceId}
+                onOpenThemePicker={() => setThemePickerOpen(true)}
+                onOpenFullSettings={() => setFullSettingsOpen(true)}
               />
               <CalibrationSheet
-                open={settingsOpen} onClose={() => setSettingsOpen(false)}
-                settings={settings} onSettings={handleSettings}
-                onCalibrated={(offset) =>
-                  handleCalibComplete({ pitchOffset: offset, minRms: settings.sensitivity ?? 0.01 })
-                }
+                open={settingsOpen}
+                onClose={() => setSettingsOpen(false)}
+                settings={settings}
+                onSettings={handleSettings}
+                onCalibrated={(offset) => handleCalibComplete({ pitchOffset: offset, minRms: settings.sensitivity ?? 0.01 })}
               />
               <TuningSheet
-                open={tuningOpen} onClose={() => setTuningOpen(false)}
-                settings={settings} onSettings={handleSettings}
+                open={tuningOpen}
+                onClose={() => setTuningOpen(false)}
+                settings={settings}
+                onSettings={handleSettings}
+              />
+              <ThemePickerSheet
+                isOpen={themePickerOpen}
+                onClose={() => setThemePickerOpen(false)}
+                bgScheme={bgScheme}
+                accentId={accentId}
+                surfaceId={surfaceId}
+                onSelectBg={handleSelectBg}
+                onSelectAccent={handleSelectAccent}
+                onSelectSurface={handleSelectSurface}
+                onSelectPreset={handleSelectPreset}
+                materialTuning={materialTuning}
+                onMaterialTuningChange={handleMaterialTuning}
+                customAccentScheme={customAccentScheme}
+                onApplyCustomAccentScheme={handleApplyCustomAccentScheme}
+              />
+              <FullSettingsSheet
+                open={fullSettingsOpen}
+                onClose={() => setFullSettingsOpen(false)}
+                settings={settings}
+                onSettings={handleSettings}
+                bgScheme={bgScheme}
+                accentId={accentId}
+                surfaceId={surfaceId}
+                onSelectBg={handleSelectBg}
+                onSelectAccent={handleSelectAccent}
+                onSelectSurface={handleSelectSurface}
+                onSelectPreset={handleSelectPreset}
+                materialTuning={materialTuning}
+                onMaterialTuningChange={handleMaterialTuning}
+                customAccentScheme={customAccentScheme}
+                onApplyCustomAccentScheme={handleApplyCustomAccentScheme}
+                onOpenTuning={() => { setFullSettingsOpen(false); setTuningOpen(true); }}
+                onOpenSettings={() => { setFullSettingsOpen(false); setSettingsOpen(true); }}
+                onStartOnboarding={startOnboarding}
+                onResetProgress={progressSystem.resetProgress}
               />
             </div>
           </ToastProvider>
@@ -412,23 +584,3 @@ export default function App() {
     </LangContext.Provider>
   );
 }
-
-// ---
-// APP.2.3 — 2026-03-09
-//
-// Updated:
-// - TAB_TITLES 完整 6-tab × 3-lang 映射（en/zh/mixed 全部正确）
-// - App header 仅在 home/persona 渲染（trainer 页面不显示"我的训练"等标题）
-// - TabBar 始终渲染（删除 trainerCCOpen 条件，进入任何 trainer 都能切换 tab）
-// - trainer 内容区 paddingBottom 为 TabBar 留出空间，消除 BottomBar 被遮挡问题
-// - 删除 trainerCCOpen / setTrainerCCOpen 状态（不再需要）
-// - IntervalTrainer 删除 onCCChange prop（不再传递）
-//
-// Fixed:
-// - bug: 进入 interval trainer 后 TabBar 消失，无法切换页面
-// - bug: 所有非 home 页面都显示"我的训练"，忽略实际 tab
-// - bug: "我的训练" + ☀️ + ⚙️ 从训练器页面透出来
-//
-// Pending:
-// - trainer 内容区 paddingBottom 用了固定 68px，未来可改为 CSS var
-// ---

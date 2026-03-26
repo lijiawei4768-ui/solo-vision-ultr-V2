@@ -1,6 +1,7 @@
 // components/intervals/l1/PracticeControlSheet.jsx
-// Fix 2: Intervals CycleCard 加长按进入 L2
-// Fix 3: Space/Flow onContextMenu 已有，保留
+// v2.1 — 원본 4-card 레이아웃 유지 + 크기 확대
+// 상행 160px (Mode+Zone | Intervals), 하행 128px (Space | Flow)
+// tab bar는 App 레벨에서 hidden 처리되므로 bottom padding은 safe-area만
 
 import React, { useContext, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -55,9 +56,9 @@ function Icon({ type, size = 16, color }) {
 }
 
 const cardStyle = (isDark, extra = {}) => ({
-  background:     isDark ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.04)',
-  border:         `1px solid ${isDark ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.07)'}`,
-  borderRadius:   12,
+  background:     isDark ? 'rgba(255,255,255,.06)' : 'rgba(0,0,0,.04)',
+  border:         `1px solid ${isDark ? 'rgba(255,255,255,.09)' : 'rgba(0,0,0,.07)'}`,
+  borderRadius:   16,
   fontFamily:     FONT_TEXT,
   display:        'flex',
   alignItems:     'center',
@@ -70,11 +71,11 @@ function SlideValue({ value }) {
     <AnimatePresence mode="wait" initial={false}>
       <motion.span
         key={value}
-        initial={{ y: 7, opacity: 0 }}
+        initial={{ y: 8, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        exit={{ y: -7, opacity: 0 }}
-        transition={{ duration: 0.14 }}
-        style={{ fontSize: 11, opacity: 0.45, display: 'block', lineHeight: 1 }}
+        exit={{ y: -8, opacity: 0 }}
+        transition={{ duration: 0.16, ease: [0.32, 0, 0.22, 1] }}
+        style={{ fontSize: 12, opacity: 0.50, display: 'block', lineHeight: 1 }}
       >
         {value}
       </motion.span>
@@ -82,15 +83,11 @@ function SlideValue({ value }) {
   );
 }
 
-// ── 通用长按卡片 — Mode / Intervals / Space / Flow 都用这个 ──
-// onTap = 短按（循环切换）
-// onLongPress = 长按进入 L2（可选）
 function PressCard({ title, value, icon, onTap, onLongPress, isDark, style = {} }) {
   const timerRef = useRef(null);
   const firedRef = useRef(false);
 
-  const down = useCallback((e) => {
-    // 阻止默认（防止 iOS 触发系统长按菜单）
+  const down = useCallback(() => {
     firedRef.current = false;
     if (onLongPress) {
       timerRef.current = setTimeout(() => {
@@ -111,7 +108,6 @@ function PressCard({ title, value, icon, onTap, onLongPress, isDark, style = {} 
     firedRef.current = false;
   }, []);
 
-  // onContextMenu = iOS/Android 长按最可靠的触发方式
   const ctxMenu = useCallback((e) => {
     e.preventDefault();
     if (!onLongPress) return;
@@ -120,32 +116,32 @@ function PressCard({ title, value, icon, onTap, onLongPress, isDark, style = {} 
     onLongPress();
   }, [onLongPress]);
 
-  const fg = isDark ? 'rgba(255,255,255,.60)' : 'rgba(0,0,0,.58)';
+  const fg = isDark ? 'rgba(255,255,255,.65)' : 'rgba(0,0,0,.60)';
 
   return (
     <motion.div
       onMouseDown={down}  onMouseUp={up}  onMouseLeave={cancel}
       onTouchStart={down} onTouchEnd={up} onTouchCancel={cancel}
       onContextMenu={ctxMenu}
-      whileTap={{ scale: 0.94, opacity: 0.75 }}
+      whileTap={{ scale: 0.93, opacity: 0.72 }}
       transition={{ type: 'spring', stiffness: 420, damping: 32 }}
       style={cardStyle(isDark, {
         flexDirection: 'column',
-        gap: 5,
+        gap: 7,
         cursor: 'pointer',
         userSelect: 'none',
+        position: 'relative',
         ...style,
       })}
     >
-      {icon && <Icon type={icon} size={17} color={fg} />}
-      <span style={{ fontSize: 12, fontWeight: 600, color: fg, lineHeight: 1 }}>{title}</span>
+      {icon && <Icon type={icon} size={20} color={fg} />}
+      <span style={{ fontSize: 14, fontWeight: 600, color: fg, lineHeight: 1 }}>{title}</span>
       <SlideValue value={value} />
-      {/* 长按提示点 */}
       {onLongPress && (
         <div style={{
-          position: 'absolute', bottom: 6, right: 6,
-          width: 3, height: 3, borderRadius: '50%',
-          background: isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.15)',
+          position: 'absolute', bottom: 8, right: 8,
+          width: 4, height: 4, borderRadius: '50%',
+          background: isDark ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.18)',
         }} />
       )}
     </motion.div>
@@ -154,26 +150,32 @@ function PressCard({ title, value, icon, onTap, onLongPress, isDark, style = {} 
 
 function ZoneStrip({ zoneId, onChange, isDark }) {
   return (
-    <div style={{ flex: 1, display: 'flex', gap: 4 }}>
+    <div style={{ flex: 1, display: 'flex', gap: 5 }}>
       {ZONE_ITEMS.map(z => {
         const act = zoneId === z.id;
         return (
           <motion.button
             key={z.id}
             onClick={() => onChange(z.id)}
-            whileTap={{ scale: 0.90 }}
+            whileTap={{ scale: 0.88 }}
             style={{
               flex: 1, height: '100%',
-              background: act ? (isDark ? 'rgba(255,255,255,.13)' : 'rgba(0,0,0,.08)') : (isDark ? 'rgba(255,255,255,.04)' : 'rgba(0,0,0,.03)'),
-              border: `1px solid ${act ? (isDark ? 'rgba(255,255,255,.18)' : 'rgba(0,0,0,.10)') : (isDark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.06)')}`,
-              borderRadius: 8,
+              background: act
+                ? (isDark ? 'rgba(255,255,255,.14)' : 'rgba(0,0,0,.09)')
+                : (isDark ? 'rgba(255,255,255,.04)' : 'rgba(0,0,0,.03)'),
+              border: `1px solid ${act
+                ? (isDark ? 'rgba(255,255,255,.20)' : 'rgba(0,0,0,.12)')
+                : (isDark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.06)')}`,
+              borderRadius: 11,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               cursor: 'pointer',
             }}
           >
             <span style={{
-              fontSize: 11, fontWeight: act ? 600 : 400,
-              color: isDark ? (act ? 'rgba(255,255,255,.85)' : 'rgba(255,255,255,.30)') : (act ? 'rgba(0,0,0,.75)' : 'rgba(0,0,0,.28)'),
+              fontSize: 12, fontWeight: act ? 600 : 400,
+              color: isDark
+                ? (act ? 'rgba(255,255,255,.88)' : 'rgba(255,255,255,.32)')
+                : (act ? 'rgba(0,0,0,.78)'        : 'rgba(0,0,0,.30)'),
               fontFamily: FONT_TEXT,
             }}>
               {z.label}
@@ -198,29 +200,30 @@ export function PracticeControlSheet({
   const isDark  = useIsDark();
   const isBlind = practiceMode === 'blind';
 
-  const modeIdx    = MODE_CYCLE.findIndex(m => m.id === practiceMode);
-  const currentMode= MODE_CYCLE[modeIdx] ?? MODE_CYCLE[0];
-  const cycleMode  = () => onPracticeModeChange(MODE_CYCLE[(modeIdx + 1) % MODE_CYCLE.length].id);
+  const modeIdx     = MODE_CYCLE.findIndex(m => m.id === practiceMode);
+  const currentMode = MODE_CYCLE[modeIdx] ?? MODE_CYCLE[0];
+  const cycleMode   = () => onPracticeModeChange(MODE_CYCLE[(modeIdx + 1) % MODE_CYCLE.length].id);
 
   const ivIdx   = INTERVAL_CYCLE.findIndex(i => i.id === intervalsPreset);
   const ivLabel = INTERVAL_CYCLE[Math.max(0, ivIdx)]?.label ?? 'All 11';
   const cycleIv = () => onIntervalsPreset(INTERVAL_CYCLE[(Math.max(0, ivIdx) + 1) % INTERVAL_CYCLE.length].id);
 
-  const spIdx     = SPACE_CYCLE.indexOf(spacePresetId ?? 'full');
-  const cycleSpace= () => onSpacePreset(SPACE_CYCLE[(spIdx + 1) % SPACE_CYCLE.length]);
+  const spIdx      = SPACE_CYCLE.indexOf(spacePresetId ?? 'full');
+  const cycleSpace = () => onSpacePreset(SPACE_CYCLE[(spIdx + 1) % SPACE_CYCLE.length]);
 
-  const flIdx    = FLOW_CYCLE.indexOf(flowPreset ?? 'free');
-  const cycleFlow= () => onFlowPreset(FLOW_CYCLE[(flIdx + 1) % FLOW_CYCLE.length]);
+  const flIdx     = FLOW_CYCLE.indexOf(flowPreset ?? 'free');
+  const cycleFlow = () => onFlowPreset(FLOW_CYCLE[(flIdx + 1) % FLOW_CYCLE.length]);
 
-  const sheetBg   = isDark ? 'rgba(18,18,30,.97)' : 'rgba(255,255,255,.98)';
-  const topBorder = isDark ? 'rgba(255,255,255,.10)' : 'rgba(0,0,0,.10)';
-  const handleCol = isDark ? 'rgba(255,255,255,.20)' : 'rgba(0,0,0,.15)';
+  const sheetBg   = isDark ? 'rgba(16,16,28,.97)' : 'rgba(248,248,252,.98)';
+  const topBorder = isDark ? 'rgba(255,255,255,.11)' : 'rgba(0,0,0,.10)';
+  const handleCol = isDark ? 'rgba(255,255,255,.22)' : 'rgba(0,0,0,.16)';
 
   return (
     <AnimatePresence>
       {open && (
         <>
-          <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
+          {/* backdrop */}
+          <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 48 }} />
 
           <motion.div
             initial={{ y: '100%' }}
@@ -234,47 +237,46 @@ export function PracticeControlSheet({
               if (info.offset.y > 60 || info.velocity.y > 280) onClose();
             }}
             style={{
-              position: 'fixed',
-              bottom: bottomOffset,
+              position:             'fixed',
+              bottom:               bottomOffset,
               left: 0, right: 0,
-              zIndex: 50,
-              background: sheetBg,
-              backdropFilter: 'blur(24px)',
-              WebkitBackdropFilter: 'blur(24px)',
-              borderTop: `1px solid ${topBorder}`,
-              borderRadius: '18px 18px 0 0',
-              boxShadow: isDark ? 'none' : '0 -8px 32px rgba(0,0,0,.12)',
-              display: 'flex',
-              flexDirection: 'column',
+              zIndex:               50,
+              background:           sheetBg,
+              backdropFilter:       'blur(28px) saturate(160%)',
+              WebkitBackdropFilter: 'blur(28px) saturate(160%)',
+              borderTop:            `1px solid ${topBorder}`,
+              borderRadius:         '24px 24px 0 0',
+              boxShadow:            isDark
+                ? '0 -8px 40px rgba(0,0,0,0.55)'
+                : '0 -4px 24px rgba(0,0,0,0.10)',
+              display:              'flex',
+              flexDirection:        'column',
             }}
           >
-            {/* handle */}
+            {/* drag handle */}
             <div style={{
-              width: 28, height: 3, borderRadius: 2,
+              width: 36, height: 4, borderRadius: 2,
               background: handleCol,
-              margin: '10px auto 5px',
+              margin: '14px auto 8px',
               flexShrink: 0,
             }} />
 
-            {/* top row: Mode (左) + Intervals (右) */}
+            {/* ── 상행: Mode (왼쪽) + Intervals (오른쪽) — 160px ── */}
             <div style={{
-              display: 'flex', gap: 6,
-              padding: '0 12px',
-              height: 110, flexShrink: 0,
+              display: 'flex', gap: 9,
+              padding: '0 14px',
+              height: 160, flexShrink: 0,
             }}>
-              {/* 左列: Mode flex:3 + Zone flex:1 */}
-              <div style={{ flex: 0.46, display: 'flex', flexDirection: 'column', gap: 5 }}>
-                {/* Mode: 短按循环，无长按 */}
+              {/* 左列: Mode 大卡 + Zone strip */}
+              <div style={{ flex: 0.46, display: 'flex', flexDirection: 'column', gap: 7 }}>
                 <PressCard
                   title="Mode"
                   value={currentMode.label}
                   icon={currentMode.icon}
                   onTap={cycleMode}
                   isDark={isDark}
-                  style={{ flex: 3, position: 'relative' }}
+                  style={{ flex: 3 }}
                 />
-
-                {/* Zone */}
                 <div style={{ flex: 1, display: 'flex' }}>
                   <AnimatePresence mode="wait" initial={false}>
                     {isBlind ? (
@@ -292,7 +294,7 @@ export function PracticeControlSheet({
                         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                         transition={{ duration: 0.13 }}
                         style={cardStyle(isDark, {
-                          flex: 1, fontSize: 10,
+                          flex: 1, fontSize: 12,
                           color: isDark ? 'rgba(255,255,255,.28)' : 'rgba(0,0,0,.24)',
                         })}
                       >
@@ -303,25 +305,25 @@ export function PracticeControlSheet({
                 </div>
               </div>
 
-              {/* 右列: Intervals — 短按循环，长按进 L2 */}
-              <div style={{ flex: 0.54, position: 'relative' }}>
+              {/* 右列: Intervals 大卡 — 短按循环，长按进 L2 */}
+              <div style={{ flex: 0.54 }}>
                 <PressCard
                   title="Intervals"
                   value={ivLabel}
                   icon="music"
                   onTap={cycleIv}
-                  onLongPress={onOpenIntervalsL2}   // ← Fix 2: 长按进 L2
+                  onLongPress={onOpenIntervalsL2}
                   isDark={isDark}
-                  style={{ height: '100%', position: 'relative' }}
+                  style={{ height: '100%' }}
                 />
               </div>
             </div>
 
-            {/* bottom row: Space + Flow */}
+            {/* ── 하행: Space + Flow — 128px ── */}
             <div style={{
-              display: 'flex', gap: 6,
-              padding: '6px 12px 16px',
-              height: 90, flexShrink: 0,
+              display: 'flex', gap: 9,
+              padding: '9px 14px 0',
+              height: 128, flexShrink: 0,
             }}>
               <PressCard
                 title="Space"
@@ -330,7 +332,7 @@ export function PracticeControlSheet({
                 onTap={cycleSpace}
                 onLongPress={onOpenSpaceL2}
                 isDark={isDark}
-                style={{ flex: 1, position: 'relative' }}
+                style={{ flex: 1 }}
               />
               <PressCard
                 title="Flow"
@@ -339,9 +341,15 @@ export function PracticeControlSheet({
                 onTap={cycleFlow}
                 onLongPress={onOpenFlowL2}
                 isDark={isDark}
-                style={{ flex: 1, position: 'relative' }}
+                style={{ flex: 1 }}
               />
             </div>
+
+            {/* safe-area bottom 垫高 */}
+            <div style={{
+              height: 'max(env(safe-area-inset-bottom, 0px), 20px)',
+              flexShrink: 0,
+            }} />
           </motion.div>
         </>
       )}

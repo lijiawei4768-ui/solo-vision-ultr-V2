@@ -1,9 +1,9 @@
 // ─────────────────────────────────────────────────────────────
 // FLOATING TAB BAR — near-black capsule, 6 tabs
-// v2 — Theme-aware via ThemeContext
+// v3 — hidden prop 추가: L1/L2/L3 열릴 때 아래로 슬라이드 아웃
 // ─────────────────────────────────────────────────────────────
 import React, { useContext } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { DT, FONT_TEXT } from "../theme";
 import { ThemeContext } from "../contexts";
 
@@ -16,7 +16,7 @@ export const TABS = [
   { id: "persona",  label: "Me",        icon: "◉" },
 ];
 
-export function TabBar({ activeTab, onTabChange }) {
+export function TabBar({ activeTab, onTabChange, hidden = false }) {
   const ctx    = useContext(ThemeContext);
   const isDark = ctx?.dark ?? true;
   const T      = ctx?.tokens ?? DT;
@@ -32,16 +32,28 @@ export function TabBar({ activeTab, onTabChange }) {
     : `0.5px solid ${T.border}`;
 
   return (
-    <nav style={{ 
-      position: "fixed", 
-      bottom: 0, 
-      left: 0, 
-      right: 0, 
-      zIndex: 40, 
-      padding: "0 16px env(safe-area-inset-bottom, 16px)", 
-      display: "flex", 
-      justifyContent: "center" 
-    }}>
+    <motion.nav
+      animate={{
+        y:              hidden ? "110%" : "0%",
+        pointerEvents:  hidden ? "none" : "auto",
+      }}
+      transition={{
+        type: "spring",
+        stiffness: 380,
+        damping: 36,
+        mass: 0.9,
+      }}
+      style={{
+        position: "fixed",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        zIndex: 40,
+        padding: "0 16px env(safe-area-inset-bottom, 16px)",
+        display: "flex",
+        justifyContent: "center",
+      }}
+    >
       <div style={{
         width: "100%", maxWidth: 560,
         background: navBg,
@@ -64,7 +76,7 @@ export function TabBar({ activeTab, onTabChange }) {
               : `0.5px solid ${T.border}`;
             return (
               <motion.button key={tab.id}
-                onClick={() => onTabChange(tab.id)}
+                onClick={() => !hidden && onTabChange(tab.id)}
                 whileTap={{ scale: 0.9 }} transition={DT.springSnap}
                 style={{
                   flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
@@ -79,10 +91,20 @@ export function TabBar({ activeTab, onTabChange }) {
                     borderTop: activeBorder,
                   }} transition={DT.spring} />
                 )}
-                <span style={{ fontSize: 15, lineHeight: 1, marginBottom: 3, position: "relative", opacity: active ? 1 : 0.4, color: active ? DT.accent : T.textPrimary }}>
+                <span style={{
+                  fontSize: 15, lineHeight: 1, marginBottom: 3,
+                  position: "relative",
+                  opacity: active ? 1 : 0.4,
+                  color: active ? DT.accent : T.textPrimary,
+                }}>
                   {tab.icon}
                 </span>
-                <span style={{ fontSize: 9, fontWeight: active ? 600 : 400, position: "relative", color: active ? DT.accent : T.textTertiary, letterSpacing: 0.2, fontFamily: FONT_TEXT }}>
+                <span style={{
+                  fontSize: 9, fontWeight: active ? 600 : 400,
+                  position: "relative",
+                  color: active ? DT.accent : T.textTertiary,
+                  letterSpacing: 0.2, fontFamily: FONT_TEXT,
+                }}>
                   {tab.label}
                 </span>
               </motion.button>
@@ -90,6 +112,6 @@ export function TabBar({ activeTab, onTabChange }) {
           })}
         </div>
       </div>
-    </nav>
+    </motion.nav>
   );
 }
